@@ -8,6 +8,14 @@ from enhanced_detection import get_server_config, detector
 from advanced_logger import logger
 import time
 
+# Загрузка конфигурации
+with open('config.json', 'r', encoding='utf-8') as f:
+    config = json.load(f)
+
+# Админские настройки
+admin_ips = set(config['admins']['ips'])
+banned_players = set(config['admins']['banned_players'])
+
 # Парсинг аргументов командной строки
 parser = argparse.ArgumentParser(description='Игровой сервер')
 parser.add_argument('--interface', '-i', type=str, help='Выбрать конкретный сетевой интерфейс')
@@ -78,7 +86,9 @@ player_speed = 5
 
 # Мультиплеер переменные
 players = {}  # {client_id: {'x': x, 'y': y, 'last_update': timestamp}}
+sockets = {}  # {client_id: socket}
 client_id = 0
+start_time = time.time()
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 try:
@@ -91,23 +101,121 @@ except Exception as e:
     print(f"Не удалось запустить сервер: {e}")
     sys.exit(1)
 
+def save_config():
+    """Сохраняет конфигурацию в файл"""
+    config['admins']['banned_players'] = list(banned_players)
+    with open('config.json', 'w', encoding='utf-8') as f:
+        json.dump(config, f, indent=4, ensure_ascii=False)
+
+def handle_command(cid, command_str):
+    """Обрабатывает админскую команду"""
+    parts = command_str.strip().split()
+    if not parts:
+        return "Неверная команда"
+
+    cmd = parts[0].lower()
+    args = parts[1:]
+
+    if cmd == '/ban':
+        if len(args) < 1:
+            return "Использование: /ban <client_id> [причина]"
+        try:
+            target_cid = int(args[0])
+            reason = ' '.join(args[1:]) if len(args) > 1 else 'нарушение правил'
+            if target_cid in players:
+                target_ip = players[target_cid]['ip']
+                banned_players.add(target_ip)
+                save_config()
+                if target_cid in sockets:
+                    sockets[target_cid].close()
+                logger.log_admin_action(cid, "бан", {'target_cid': target_cid, 'target_ip': target_ip, 'reason': reason})
+                return f"Игрок {target_cid} ({target_ip}) забанен: {reason}"
+            else:
+                return f"Игрок {target_cid} не найден"
+        except ValueError:
+            return "Неверный ID игрока"
+
+    elif cmd == '/kick':
+        if len(args) < 1:
+            return "Использование: /kick <client_id> [причина]"
+        try:
+            target_cid = int(args[0])
+            reason = ' '.join(args[1:]) if len(args) > 1 else 'кикнут админом'
+            if target_cid in players:
+                if target_cid in sockets:
+                    sockets[target_cid].close()
+                logger.log_admin_action(cid, "кик", {'target_cid': target_cid, 'reason': reason})
+                return f"Игрок {target_cid} кикнут: {reason}"
+            else:
+                return f"Игрок {target_cid} не найден"
+        except ValueError:
+            return "Неверный ID игрока"
+
+    elif cmd == '/unban':
+        if len(args) < 1:
+            return "Использование: /unban <ip>"
+        ip = args[0]
+        if ip in banned_players:
+            banned_players.remove(ip)
+            save_config()
+            logger.log_admin_action(cid, "разбан", {'ip': ip})
+            return f"IP {ip} разбанен"
+        else:
+            return f"IP {ip} не в бане"
+
+    elif cmd == '/list':
+        player_list = []
+        for pid, p in players.items():
+            admin_str = " [АДМИН]" if p.get('is_admin') else ""
+            player_list.append(f"ID {pid}: {p['ip']}{admin_str} ({p['x']:.0f}, {p['y']:.0f})")
+        return "Игроки онлайн:\n" + '\n'.join(player_list) if player_list else "Нет игроков онлайн"
+
+    elif cmd == '/stats':
+        uptime = time.time() - start_time
+        return f"Статистика сервера:\nИгроков онлайн: {len(players)}\nОбщее количество клиентов: {client_id}\nВремя работы: {uptime:.0f} сек"
+
+    elif cmd == '/debug':
+        debug_info = []
+        debug_info.append(f"Админы: {list(admin_ips)}")
+        debug_info.append(f"Забаненные: {list(banned_players)}")
+        debug_info.append(f"Игроки: {list(players.keys())}")
+        return "Отладочная информация:\n" + '\n'.join(debug_info)
+
+    else:
+        return f"Неизвестная команда: {cmd}"
+
 def handle_client(client_sock, addr):
     global client_id
+
+    # Проверяем, забанен ли игрок
+    if addr[0] in banned_players:
+        logger.log_connection(-1, "заблокирован", {'ip': addr[0], 'reason': 'бан'})
+        client_sock.close()
+        return
+
     cid = client_id
     client_id += 1
-    
+
+    # Проверяем, является ли игрок админом
+    is_admin = addr[0] in admin_ips
+
     # Инициализируем игрока
     players[cid] = {
         'x': width // 2,
         'y': height // 2,
         'direction': 'down',
         'moving': False,
-        'last_update': time.time()
+        'last_update': time.time(),
+        'ip': addr[0],
+        'is_admin': is_admin
     }
-    
+
+    # Сохраняем сокет для возможного отключения
+    sockets[cid] = client_sock
+
     # Устанавливаем контекст логирования
     logger.set_request_context(cid, addr[0])
-    logger.log_connection(cid, "подключен", {'ip': addr[0], 'port': addr[1]})
+    logger.log_connection(cid, "подключен", {'ip': addr[0], 'port': addr[1], 'admin': is_admin})
     
     try:
         while True:
@@ -120,6 +228,19 @@ def handle_client(client_sock, addr):
             
             # Обновляем позицию игрока
             player = players[cid]
+
+            # Обработка админских команд
+            if 'command' in inputs and is_admin:
+                message = handle_command(cid, inputs['command'])
+                all_positions = {
+                    'self': players[cid].copy(),
+                    'players': {k: v.copy() for k, v in players.items() if k != cid},
+                    'server_time': current_time,
+                    'message': message
+                }
+                client_sock.send(pickle.dumps(all_positions))
+                continue
+
             dx = 0
             dy = 0
             if inputs['left']: dx = -1
@@ -166,6 +287,8 @@ def handle_client(client_sock, addr):
         logger.log_connection(cid, "отключен")
         if cid in players:
             del players[cid]
+        if cid in sockets:
+            del sockets[cid]
         client_sock.close()
 
 def server_loop():

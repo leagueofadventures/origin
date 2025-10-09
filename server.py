@@ -4,12 +4,14 @@ import pickle
 import sys
 import json
 import argparse
+import os
 from enhanced_detection import get_server_config, detector
 from advanced_logger import logger
 import time
 
 # Загрузка конфигурации
-with open('config.json', 'r', encoding='utf-8') as f:
+config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+with open(config_path, 'r', encoding='utf-8') as f:
     config = json.load(f)
 
 # Админские настройки
@@ -104,7 +106,7 @@ except Exception as e:
 def save_config():
     """Сохраняет конфигурацию в файл"""
     config['admins']['banned_players'] = list(banned_players)
-    with open('config.json', 'w', encoding='utf-8') as f:
+    with open(config_path, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
 
 def handle_command(cid, command_str):
@@ -273,13 +275,6 @@ def handle_client(client_sock, addr):
             }
             
             client_sock.send(pickle.dumps(all_positions))
-            
-            # Логируем игровое событие
-            logger.log_game_event("обновление_позиции", {
-                'client_id': cid,
-                'position': {'x': player['x'], 'y': player['y']},
-                'inputs': inputs
-            })
             
     except Exception as e:
         logger.log_error(e, f"Обработка клиента {cid}")

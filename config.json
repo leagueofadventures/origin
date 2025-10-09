@@ -26,7 +26,11 @@
         "backup_count": 5
     },
     "admins": {
-        "ips": ["127.0.0.1"],
-        "banned_players": []
+        "ips": [
+            "192.168.1.4"
+        ],
+        "banned_players": [
+            
+        ]
     }
 }

@@ -55,6 +55,13 @@ class AdvancedLogger:
             message += f" - {json.dumps(details)}"
         self.logger.info(message)
 
+    def log_admin_action(self, client_id: int, action: str, details: Dict[str, Any] = None):
+        """Логировать админские действия"""
+        message = f"Админ {client_id}: {action}"
+        if details:
+            message += f" - {json.dumps(details)}"
+        self.logger.info(message)
+
     def log_game_event(self, event_type: str, details: Dict[str, Any]):
         """Логировать игровые события"""
         message = f"Игровое событие: {event_type} - {json.dumps(details)}"

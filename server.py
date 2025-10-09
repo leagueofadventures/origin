@@ -183,17 +183,24 @@ def handle_command(cid, command_str):
         debug_info.append(f"Игроки: {list(players.keys())}")
         return "Отладочная информация:\n" + '\n'.join(debug_info)
 
+    elif cmd == '/help':
+        help_text = [
+            "Доступные команды:",
+            "/ban <client_id> [причина] - Забанить игрока",
+            "/kick <client_id> [причина] - Кикнуть игрока",
+            "/unban <ip> - Разбанить IP",
+            "/list - Список игроков",
+            "/stats - Статистика сервера",
+            "/debug - Отладочная информация",
+            "/help - Показать эту справку"
+        ]
+        return '\n'.join(help_text)
+
     else:
         return f"Неизвестная команда: {cmd}"
 
 def handle_client(client_sock, addr):
     global client_id
-
-    # Проверяем, забанен ли игрок
-    if addr[0] in banned_players:
-        logger.log_connection(-1, "заблокирован", {'ip': addr[0], 'reason': 'бан'})
-        client_sock.close()
-        return
 
     cid = client_id
     client_id += 1
@@ -217,7 +224,24 @@ def handle_client(client_sock, addr):
 
     # Устанавливаем контекст логирования
     logger.set_request_context(cid, addr[0])
+
+    # Проверяем, забанен ли игрок
+    if addr[0] in banned_players:
+        logger.log_connection(cid, "заблокирован", {'ip': addr[0], 'reason': 'бан'})
+        try:
+            client_sock.send(pickle.dumps({'banned': True, 'reason': 'Вы забанены'}))
+        except:
+            pass
+        client_sock.close()
+        return
+
     logger.log_connection(cid, "подключен", {'ip': addr[0], 'port': addr[1], 'admin': is_admin})
+
+    # Отправляем статус OK
+    try:
+        client_sock.send(pickle.dumps({'status': 'ok'}))
+    except:
+        pass
     
     try:
         while True:

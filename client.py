@@ -18,7 +18,9 @@ class AnimatedSprite:
 
         base_path = os.path.join(PROJECT_DIR, 'Карта', 'sprites', 'PNG', 'Vampires1')
 
-        # Загрузка анимаций из папок PNG
+
+
+       # Загрузка анимаций из папок PNG
         anim_configs = {
             'walk': {'folder': 'Vampires1_Walk_without_shadow.png', 'frames': 6, 'prefix': '{dir}{i}.jpg'},
             'attack': {'folder': 'Vampires1_Attack_without_shadow.png', 'frames': 12, 'prefix': '{dir}{i}.jpg'},
@@ -157,6 +159,10 @@ screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 info = pygame.display.Info()
 width, height = info.current_w, info.current_h
 
+# Шрифты
+font_large = pygame.font.SysFont(None, 48)
+font = pygame.font.SysFont(None, 24)
+
 # Загрузка TMX-карты
 map_file = os.path.join(PROJECT_DIR, 'Карта', 'maps', 'безымянный.tmx')
 try:
@@ -230,6 +236,41 @@ except Exception as e:
     pygame.quit()
     sys.exit()
 
+# Получаем начальное сообщение от сервера
+try:
+    data = client_socket.recv(1024)
+    initial = pickle.loads(data)
+    if 'banned' in initial:
+        banned = True
+        ban_reason = initial.get('reason', 'Неизвестная причина')
+        # Отображаем экран бана
+        screen.fill((0, 0, 0))
+        font_large = pygame.font.SysFont(None, 48)
+        text = font_large.render("Вы забанены", True, (255, 0, 0))
+        screen.blit(text, (width // 2 - text.get_width() // 2, height // 2 - 50))
+        reason_text = font.render(f"Причина: {ban_reason}", True, (255, 255, 255))
+        screen.blit(reason_text, (width // 2 - reason_text.get_width() // 2, height // 2 + 10))
+        pygame.display.flip()
+        # Ждем закрытия
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                    waiting = False
+        client_socket.close()
+        pygame.quit()
+        sys.exit()
+    elif 'status' in initial and initial['status'] == 'ok':
+        pass  # Продолжаем
+    else:
+        print("Неожиданное начальное сообщение")
+        pygame.quit()
+        sys.exit()
+except Exception as e:
+    print(f"Ошибка при получении начального сообщения: {e}")
+    pygame.quit()
+    sys.exit()
+
 def draw_map(surface, camera_x, camera_y):
     for layer in tmx_data.visible_layers:
         if isinstance(layer, pytmx.TiledTileLayer):
@@ -240,6 +281,13 @@ def draw_map(surface, camera_x, camera_y):
                                         y * tmx_data.tileheight - camera_y))
 
 running = True
+
+console_mode = False
+command_text = ""
+last_message = ""
+banned = False
+ban_reason = ""
+
 while running:
     clock = pygame.time.Clock()
     clock.tick(60)
@@ -251,50 +299,82 @@ while running:
         elif event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 running = False
+            elif event.key == pygame.K_BACKQUOTE or event.unicode == 'ё':
+                console_mode = not console_mode
+                if console_mode:
+                    command_text = ""
+            elif console_mode:
+                if event.key == pygame.K_RETURN:
+                    if command_text.strip():
+                        # Отправляем команду на сервер
+                        try:
+                            client_socket.send(pickle.dumps({'command': command_text.strip()}))
+                            data = client_socket.recv(1024)
+                            response = pickle.loads(data)
+                            if 'message' in response:
+                                last_message = response['message']
+                        except Exception as e:
+                            print(f"Ошибка отправки команды: {e}")
+                    command_text = ""
+                    console_mode = False
+                elif event.key == pygame.K_BACKSPACE:
+                    command_text = command_text[:-1]
+                else:
+                    if event.unicode.isprintable():
+                        command_text += event.unicode
 
-    # Отправляем вводы на сервер
-    keys = pygame.key.get_pressed()
-    inputs = {
-        'left': keys[pygame.K_LEFT],
-        'right': keys[pygame.K_RIGHT],
-        'up': keys[pygame.K_UP],
-        'down': keys[pygame.K_DOWN]
-    }
+    if not console_mode:
+        # Отправляем вводы на сервер
+        keys = pygame.key.get_pressed()
+        inputs = {
+            'left': keys[pygame.K_LEFT],
+            'right': keys[pygame.K_RIGHT],
+            'up': keys[pygame.K_UP],
+            'down': keys[pygame.K_DOWN]
+        }
 
-    # Проверка столкновений перед отправкой вводов
-    dx = (inputs['right'] - inputs['left']) * player_speed
-    dy = (inputs['down'] - inputs['up']) * player_speed
-    new_x = player_x + dx
-    new_y = player_y + dy
-    player_rect = pygame.Rect(new_x + 16, new_y + 16, 32, 32)  # Хитбокс 32x32 в центре спрайта
-    if any(player_rect.colliderect(rect) for rect in collision_rects):
-        inputs = {'left': False, 'right': False, 'up': False, 'down': False}
+        # Проверка столкновений перед отправкой вводов
+        dx = (inputs['right'] - inputs['left']) * player_speed
+        dy = (inputs['down'] - inputs['up']) * player_speed
+        new_x = player_x + dx
+        new_y = player_y + dy
+        player_rect = pygame.Rect(new_x + 16, new_y + 16, 32, 32)  # Хитбокс 32x32 в центре спрайта
+        if any(player_rect.colliderect(rect) for rect in collision_rects):
+            inputs = {'left': False, 'right': False, 'up': False, 'down': False}
 
-    try:
-        client_socket.send(pickle.dumps(inputs))
-        data = client_socket.recv(1024)
-        all_positions = pickle.loads(data)
-        # Обновляем позиции
-        if 'self' in all_positions and isinstance(all_positions['self'], dict):
-            player_x = all_positions['self'].get('x', width // 2)
-            player_y = all_positions['self'].get('y', height // 2)
-        
-        # Обновляем позиции других игроков
-        players = all_positions.get('players', {})
-    except Exception as e:
-        print(f"Ошибка соединения: {e}")
-        running = False
+        try:
+            client_socket.send(pickle.dumps(inputs))
+            data = client_socket.recv(1024)
+            all_positions = pickle.loads(data)
+            # Обновляем позиции
+            if 'self' in all_positions and isinstance(all_positions['self'], dict):
+                player_x = all_positions['self'].get('x', width // 2)
+                player_y = all_positions['self'].get('y', height // 2)
+            
+            # Обновляем позиции других игроков
+            players = all_positions.get('players', {})
+            # Если есть сообщение от сервера, выводим в игре
+            if 'message' in all_positions:
+                last_message = all_positions['message']
+        except Exception as e:
+            print(f"Ошибка соединения: {e}")
+            running = False
 
     # Определение анимации
     dx = 0
     dy = 0
-    if inputs['left']: dx = -1
-    if inputs['right']: dx = 1
-    if inputs['up']: dy = -1
-    if inputs['down']: dy = 1
+    if not console_mode:
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]: dx = -1
+        if keys[pygame.K_RIGHT]: dx = 1
+        if keys[pygame.K_UP]: dy = -1
+        if keys[pygame.K_DOWN]: dy = 1
+    else:
+        dx = 0
+        dy = 0
     
-    attack_pressed = keys[pygame.K_SPACE]
-    hurt_pressed = keys[pygame.K_h]
+    attack_pressed = keys[pygame.K_SPACE] if not console_mode else False
+    hurt_pressed = keys[pygame.K_h] if not console_mode else False
 
     if attack_pressed:
         anim = 'attack_' + last_direction
@@ -348,7 +428,25 @@ while running:
         img = other_sprites[pid].get_image()
         if img:
             screen.blit(img, (pos['x'] - camera_x, pos['y'] - camera_y))
-    
+
+    # Отрисовка консоли
+    if console_mode:
+        console_surface = pygame.Surface((width, 30))
+        console_surface.set_alpha(180)
+        console_surface.fill((0, 0, 0))
+        screen.blit(console_surface, (0, height - 30))
+        text_surface = font.render("> " + command_text, True, (255, 255, 255))
+        screen.blit(text_surface, (10, height - 25))
+
+    # Отрисовка последнего сообщения
+    if last_message:
+        message_surface = pygame.Surface((width, 50))
+        message_surface.set_alpha(180)
+        message_surface.fill((0, 0, 0))
+        screen.blit(message_surface, (0, 0))
+        text_surface = font.render(last_message, True, (255, 255, 255))
+        screen.blit(text_surface, (10, 10))
+
     pygame.display.flip()
 
 client_socket.close()

@@ -1,0 +1,13 @@
+2025-10-09 20:00:59,549 - game_server - INFO - <module>:99 - Сервер запущен на 192.168.1.4:5555 (привязан к 0.0.0.0)
+2025-10-09 20:01:02,770 - game_server - INFO - log_connection:56 - Клиент 0: подключен - {"ip": "192.168.1.4", "port": 62683, "admin": true}
+2025-10-09 20:01:36,131 - game_server - ERROR - log_error:66 - Ошибка в Обработка клиента 0: 'AdvancedLogger' object has no attribute 'log_admin_action'
+Traceback (most recent call last):
+  File "C:\Users\User\Desktop\Карта\server.py", line 249, in handle_client
+    message = handle_command(cid, inputs['command'])
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\Desktop\Карта\server.py", line 133, in handle_command
+    logger.log_admin_action(cid, "бан", {'target_cid': target_cid, 'target_ip': target_ip, 'reason': reason})
+    ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'AdvancedLogger' object has no attribute 'log_admin_action'
+2025-10-09 20:01:36,183 - game_server - INFO - log_connection:56 - Клиент 0: отключен
+2025-10-09 20:03:10,525 - game_server - INFO - log_connection:56 - Клиент -1: заблокирован - {"ip": "192.168.1.4", "reason": "\u0431\u0430\u043d"}

@@ -1,2 +1,2 @@
-pygame>=2.0.0
-pytmx>=3.0.0
+pygame
+pytmx

@@ -1,5 +1,0 @@
-2025-09-23 17:50:12,952 - game_server - ERROR - log_error:66 - Ошибка в Запуск сервера: [WinError 10048] Обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)
-Traceback (most recent call last):
-  File "C:\Users\User\Desktop\Карта\server.py", line 29, in <module>
-    server_socket.bind((bind_address, port))
-OSError: [WinError 10048] Обычно разрешается только одно использование адреса сокета (протокол/сетевой адрес/порт)

@@ -7,8 +7,8 @@
         "tick_rate": 60
     },
     "client": {
-        "server_host": "auto",
-        "server_port": 5555,
+        "server_host": "tcp.cloudpub.ru",
+        "server_port": 49094,
         "fullscreen": true,
         "sprite_path": "Карта/lena.jpg",
         "map_file": "Карта/безымянный.tmx"
@@ -27,10 +27,12 @@
     },
     "admins": {
         "ips": [
-            "192.168.1.4"
+            "192.168.1.4",
+            "109.252.167.96",
+            "127.0.0.1"
         ],
         "banned_players": [
-            
+
         ]
     }
 }

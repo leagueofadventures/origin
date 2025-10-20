@@ -42,6 +42,80 @@ font = pygame.font.SysFont(None, 24)
 # Анимация
 animation_frame = 0
 
+# Переменные меню
+menu = True
+solo_time = False
+solo_start_time = 0
+change_time = 8000
+
+# Цвета
+red = (255, 0, 0)
+black = (0, 0, 0)
+
+# Загрузка изображений для текстовой части игры
+images = []
+for i in range(1, 12):
+    try:
+        name_image = str(i) + '.png'
+        image_file = os.path.join(PROJECT_DIR, 'images', name_image)
+        image = pygame.transform.scale(pygame.image.load(image_file), screen.get_size())
+        images.append(image)
+        print('SOSA')
+    except FileNotFoundError:
+        print('Ошибка. Файл не найден')
+
+# Загрузка картинки главного меню
+menu_file = os.path.join(PROJECT_DIR, 'images', 'меню.png')
+try:
+    menu_png = pygame.transform.scale(pygame.image.load(menu_file), screen.get_size())
+except:
+    print('Ошибка. Файл "Меню.png" не найден')
+    pygame.quit()
+    sys.exit()
+
+# Загрузка картинки меню выхода
+quit_file = os.path.join(PROJECT_DIR, 'images', 'quit_menu.jpg')
+try:
+    quit_png = pygame.transform.scale(pygame.image.load(quit_file), screen.get_size())
+except:
+    print('Ошибка. Файл "quit_menu.jpg" не найден.')
+    pygame.quit()
+    sys.exit()
+
+# Загрузка заднего фона настроек
+settings_file = os.path.join(PROJECT_DIR, 'images', 'settings_background.png')
+try:
+    setting_png = pygame.transform.scale(pygame.image.load(settings_file), screen.get_size())
+except FileNotFoundError:
+    print('Ошибка. Файл "settings_background.png" не найден.')
+    pygame.quit()
+    sys.exit()
+
+# Создание кнопок главного меню
+solo_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
+solo_play_button.fill((0, 0, 0, 0))
+solo_play_button_rect = solo_play_button.get_rect(topleft=(820, 520))
+
+multi_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
+multi_play_button.fill((0, 0, 0, 0))
+multi_play_button_rect = multi_play_button.get_rect(topleft=(820, 620))
+
+options_button = pygame.Surface((300, 70), pygame.SRCALPHA)
+options_button.fill((0, 0, 0, 0))
+options_button_rect = options_button.get_rect(topleft=(820, 730))
+
+quit_button = pygame.Surface((300, 70), pygame.SRCALPHA)
+quit_button.fill((0, 0, 0, 0))
+quit_button_rect = quit_button.get_rect(topleft=(810, 840))
+
+quit_yes_button = pygame.Surface((160, 65), pygame.SRCALPHA)
+quit_yes_button.fill((0, 0, 0, 0))
+quit_yes_button_rect = quit_yes_button.get_rect(topleft=(785, 590))
+
+quit_no_button = pygame.Surface((160, 65), pygame.SRCALPHA)
+quit_no_button.fill((0, 0, 0, 0))
+quit_no_button_rect = quit_no_button.get_rect(topleft=(975, 590))
+
 # Загрузка спрайтов персонажа
 player_sprites = {}
 attack_sprites = {}
@@ -233,7 +307,67 @@ while running:
                     if event.unicode.isprintable():
                         chat_input_text += event.unicode
 
-    if not chat_input_mode:
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if menu:
+                if solo_play_button_rect.collidepoint(event.pos):
+                    menu = False
+                    screen.fill(black)
+                    screen.blit(images[0], (0, 0))
+                    solo_time = True
+                    solo_start_time = pygame.time.get_ticks()
+
+                if multi_play_button_rect.collidepoint(event.pos):
+                    print('Оно тоже живое')
+                    menu = False
+                    # Proceed to multiplayer
+
+                if options_button_rect.collidepoint(event.pos):
+                    print('И оно живое')
+                    menu = False
+                    screen.fill(black)
+                    screen.blit(setting_png, (0, 0))
+
+                if quit_button_rect.collidepoint(event.pos):
+                    menu = False
+                    print('И Последнее живет')
+                    screen.fill(black)
+                    screen.blit(quit_png, (0, 0))
+                    screen.blit(quit_yes_button, quit_yes_button_rect)
+                    screen.blit(quit_no_button, quit_no_button_rect)
+
+            if quit_yes_button_rect.collidepoint(event.pos):
+                print('Да тут все живое!')
+                running = False
+
+            if quit_no_button_rect.collidepoint(event.pos):
+                menu = True
+
+    if solo_time:
+        elapsed = pygame.time.get_ticks() - solo_start_time
+        if elapsed >= change_time:
+            screen.blit(images[1], (0, 0))
+            if elapsed >= change_time + 8000:
+                screen.blit(images[2], (0, 0))
+                if elapsed >= change_time + 16000:
+                    screen.blit(images[3], (0, 0))
+                    if elapsed >= change_time + 24000:
+                        screen.blit(images[4], (0, 0))
+                        if elapsed >= change_time + 32000:
+                            screen.blit(images[5], (0, 0))
+                            if elapsed >= change_time + 40000:
+                                screen.blit(images[6], (0, 0))
+                                if elapsed >= change_time + 48000:
+                                    screen.blit(images[7], (0, 0))
+                                    if elapsed >= change_time + 56000:
+                                        screen.blit(images[8], (0, 0))
+                                        if elapsed >= change_time + 64000:
+                                            screen.blit(images[9], (0, 0))
+                                            if elapsed >= change_time + 72000:
+                                                screen.blit(images[10], (0, 0))
+                                                if elapsed >= change_time + 80000:
+                                                    screen.blit(images[11], (0, 0))
+
+    if not chat_input_mode and not menu and not solo_time:
         # Send inputs
         keys = pygame.key.get_pressed()
         inputs = {
@@ -250,83 +384,94 @@ while running:
             except Exception as e:
                 print(f"Send error: {e}")
 
-    # Camera follow player
-    if cid and cid in players:
-        player_x = players[cid]['x']
-        player_y = players[cid]['y']
-        camera_x = max(0, min(player_x - (width // 2), map_width - width))
-        camera_y = max(0, min(player_y - (height // 2), map_height - height))
+        # Camera follow player
+        if cid and cid in players:
+            player_x = players[cid]['x']
+            player_y = players[cid]['y']
+            camera_x = max(0, min(player_x - (width // 2), map_width - width))
+            camera_y = max(0, min(player_y - (height // 2), map_height - height))
 
-    # Rendering
-    screen.fill((0, 0, 0))
+        # Rendering
+        screen.fill((0, 0, 0))
 
-    # Draw map
-    draw_map(screen, camera_x, camera_y)
+        # Draw map
+        draw_map(screen, camera_x, camera_y)
 
-    # Draw self (assuming cid is set)
-    if cid:
-        player_dir = players[cid].get('direction', 'down')
-        is_moving = players[cid].get('moving', False)
-        is_attacking = players[cid].get('attacking', False)
-        if player_sprites and player_dir in player_sprites:
-            if is_attacking and attack_sprites and player_dir in attack_sprites:
-                sprite = attack_sprites[player_dir][frame_index % len(attack_sprites[player_dir])]
-            elif is_moving:
-                sprite = player_sprites[player_dir][frame_index % len(player_sprites[player_dir])]
-            else:
-                # Idle animation, use first frame
-                sprite = player_sprites[player_dir][0]
-            draw_entity(screen, player_x - camera_x, player_y - camera_y, (0, 255, 0), sprite=sprite)
-        else:
-            draw_square(screen, player_x - camera_x, player_y - camera_y, (0, 255, 0))  # Green for self
-
-    # Draw other players
-    for pid, pos in players.items():
-        if pid != cid:
-            player_dir = pos.get('direction', 'down')
-            is_moving = pos.get('moving', False)
-            is_attacking = pos.get('attacking', False)
+        # Draw self (assuming cid is set)
+        if cid:
+            player_dir = players[cid].get('direction', 'down')
+            is_moving = players[cid].get('moving', False)
+            is_attacking = players[cid].get('attacking', False)
             if player_sprites and player_dir in player_sprites:
                 if is_attacking and attack_sprites and player_dir in attack_sprites:
                     sprite = attack_sprites[player_dir][frame_index % len(attack_sprites[player_dir])]
                 elif is_moving:
                     sprite = player_sprites[player_dir][frame_index % len(player_sprites[player_dir])]
                 else:
+                    # Idle animation, use first frame
                     sprite = player_sprites[player_dir][0]
-                draw_entity(screen, pos['x'] - camera_x, pos['y'] - camera_y, (0, 0, 255), sprite=sprite)
+                draw_entity(screen, player_x - camera_x, player_y - camera_y, (0, 255, 0), sprite=sprite)
             else:
-                draw_square(screen, pos['x'] - camera_x, pos['y'] - camera_y, (0, 0, 255))  # Blue for others
+                draw_square(screen, player_x - camera_x, player_y - camera_y, (0, 255, 0))  # Green for self
 
-    # Draw mobs
-    for mid, mob in mobs.items():
-        draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))  # Red for mobs
+        # Draw other players
+        for pid, pos in players.items():
+            if pid != cid:
+                player_dir = pos.get('direction', 'down')
+                is_moving = pos.get('moving', False)
+                is_attacking = pos.get('attacking', False)
+                if player_sprites and player_dir in player_sprites:
+                    if is_attacking and attack_sprites and player_dir in attack_sprites:
+                        sprite = attack_sprites[player_dir][frame_index % len(attack_sprites[player_dir])]
+                    elif is_moving:
+                        sprite = player_sprites[player_dir][frame_index % len(player_sprites[player_dir])]
+                    else:
+                        sprite = player_sprites[player_dir][0]
+                    draw_entity(screen, pos['x'] - camera_x, pos['y'] - camera_y, (0, 0, 255), sprite=sprite)
+                else:
+                    draw_square(screen, pos['x'] - camera_x, pos['y'] - camera_y, (0, 0, 255))  # Blue for others
 
-    # Draw projectiles
-    for pid, proj in projectiles.items():
-        draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  # Red circle for projectiles
+        # Draw mobs
+        for mid, mob in mobs.items():
+            draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))  # Red for mobs
 
-    # Draw chat
-    rect_width = 400
-    rect_height = 250 + (30 if chat_input_mode else 0)
-    rect_x = 10
-    rect_y = height - rect_height - 10
-    chat_surface = pygame.Surface((rect_width, rect_height), pygame.SRCALPHA)
-    chat_surface.fill((0, 0, 0, 128))
-    screen.blit(chat_surface, (rect_x, rect_y))
-    y_offset = rect_y + 10
-    for msg in client_chat_history[-8:]:
-        text = font.render(msg['message'], True, (255, 255, 255))
-        if y_offset + text.get_height() > rect_y + rect_height - (30 if chat_input_mode else 0):
-            break
-        screen.blit(text, (rect_x + 10, y_offset))
-        y_offset += 25
-    if chat_input_mode:
-        input_y = rect_y + rect_height - 30
-        input_surface = pygame.Surface((rect_width, 30), pygame.SRCALPHA)
-        input_surface.fill((0, 0, 0, 128))
-        screen.blit(input_surface, (rect_x, input_y))
-        input_text = font.render("> " + chat_input_text, True, (255, 255, 255))
-        screen.blit(input_text, (rect_x + 10, input_y + 5))
+        # Draw projectiles
+        for pid, proj in projectiles.items():
+            draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  # Red circle for projectiles
+
+        # Draw chat
+        rect_width = 400
+        rect_height = 250 + (30 if chat_input_mode else 0)
+        rect_x = 10 
+        rect_y = height - rect_height - 10
+        chat_surface = pygame.Surface((rect_width, rect_height), pygame.SRCALPHA)
+        chat_surface.fill((0, 0, 0, 128))
+        screen.blit(chat_surface, (rect_x, rect_y))
+        y_offset = rect_y + 10
+        for msg in client_chat_history[-8:]:
+            text = font.render(msg['message'], True, (255, 255, 255))
+            if y_offset + text.get_height() > rect_y + rect_height - (30 if chat_input_mode else 0):
+                break
+            screen.blit(text, (rect_x + 10, y_offset))
+            y_offset += 25
+        if chat_input_mode:
+            input_y = rect_y + rect_height - 30
+            input_surface = pygame.Surface((rect_width, 30), pygame.SRCALPHA)
+            input_surface.fill((0, 0, 0, 128))
+            screen.blit(input_surface, (rect_x, input_y))
+            input_text = font.render("> " + chat_input_text, True, (255, 255, 255))
+            screen.blit(input_text, (rect_x + 10, input_y + 5))
+
+    # Отрисовка меню
+    if menu:
+        screen.fill((0, 0, 0))
+        screen.blit(menu_png, (0, 0))
+        # pygame.draw.rect(screen, red, solo_play_button)
+        # pygame.draw.rect(screen, red, multi_play_button)
+        screen.blit(solo_play_button, solo_play_button_rect)
+        screen.blit(multi_play_button, multi_play_button_rect)
+        screen.blit(options_button, options_button_rect)
+        screen.blit(quit_button, quit_button_rect)
 
     pygame.display.flip()
 

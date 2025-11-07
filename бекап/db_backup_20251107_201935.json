@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-11-07T20:19:34.516824",
+  "users": [
+    {
+      "username": "gambit",
+      "password": "gambit",
+      "is_admin": true
+    },
+    {
+      "username": "volz0r",
+      "password": "volz0r",
+      "is_admin": false
+    }
+  ],
+  "admins": [
+    "gambit"
+  ],
+  "banned": []
+}

@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-11-07T20:14:29.463106",
+  "users": [
+    {
+      "username": "gambit",
+      "password": "gambit",
+      "is_admin": true
+    }
+  ],
+  "admins": [
+    "gambit"
+  ],
+  "banned": []
+}

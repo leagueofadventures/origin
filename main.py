@@ -1,3 +1,4 @@
+
 import pygame
 import pytmx
 from pytmx import util_pygame
@@ -33,14 +34,14 @@ player_sprites = {}
 attack_sprites = {}
 directions = ['up', 'down', 'left', 'right']
 try:
+    walk_base_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png')
+    attack_base_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png')
     for dir_name in directions:
-        walk_path = os.path.join(PROJECT_DIR, 'sprites', 'walk', dir_name)
-        attack_path = os.path.join(PROJECT_DIR, 'sprites', 'attack', dir_name)
         player_sprites[dir_name] = [
-            pygame.image.load(f"{walk_path}{i}.png").convert_alpha() for i in range(1, 7)
+            pygame.image.load(os.path.join(walk_base_path, f"{dir_name}{i}.jpg")).convert_alpha() for i in range(1, 7)
         ]
         attack_sprites[dir_name] = [
-            pygame.image.load(f"{attack_path}{i}.png").convert_alpha() for i in range(1, 7)
+            pygame.image.load(os.path.join(attack_base_path, f"{dir_name}{i}.jpg")).convert_alpha() for i in range(1, 7)
         ]
 except Exception as e:
     print(f"Ошибка загрузки спрайтов: {e}")

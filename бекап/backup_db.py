@@ -168,6 +168,86 @@ def delete_user(username):
         if 'conn' in locals():
             conn.close()
 
+def ban_user(username):
+    """Банит пользователя (добавляет в таблицу banned)"""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        # Проверяем, существует ли пользователь
+        cursor.execute("SELECT username FROM users WHERE username = %s", (username,))
+        if cursor.fetchone() is None:
+            print(f"Пользователь {username} не найден")
+            return
+
+        # Добавляем в banned (ON CONFLICT DO NOTHING предотвращает дубликаты)
+        cursor.execute("INSERT INTO banned (username) VALUES (%s) ON CONFLICT (username) DO NOTHING", (username,))
+        banned_count = cursor.rowcount
+        conn.commit()
+
+        if banned_count > 0:
+            print(f"Пользователь {username} забанен")
+        else:
+            print(f"Пользователь {username} уже забанен")
+
+    except psycopg2.Error as e:
+        print(f"Ошибка бана пользователя: {e}")
+        if 'conn' in locals():
+            conn.rollback()
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+def unban_user(username):
+    """Разбанивает пользователя (удаляет из таблицы banned)"""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM banned WHERE username = %s", (username,))
+        unbanned_count = cursor.rowcount
+        conn.commit()
+
+        if unbanned_count > 0:
+            print(f"Пользователь {username} разбанен")
+        else:
+            print(f"Пользователь {username} не был забанен")
+
+    except psycopg2.Error as e:
+        print(f"Ошибка разбана пользователя: {e}")
+        if 'conn' in locals():
+            conn.rollback()
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+def list_banned_users():
+    """Показывает список забаненных пользователей"""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT username FROM banned ORDER BY username")
+        banned_users = cursor.fetchall()
+
+        print("Забаненные пользователи:")
+        for user in banned_users:
+            print(f"  - {user[0]}")
+
+        print(f"\nВсего забанено: {len(banned_users)}")
+
+    except psycopg2.Error as e:
+        print(f"Ошибка получения списка забаненных: {e}")
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
 def list_users():
     """Показывает список всех пользователей"""
     try:
@@ -275,6 +355,8 @@ class DatabaseManager:
         tk.Button(button_frame, text="Восстановить из бэкапа", command=self.restore_database).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Добавить пользователя", command=self.add_user_dialog).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Удалить пользователя", command=self.delete_user_dialog).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Забанить пользователя", command=self.ban_user_dialog).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Разбанить пользователя", command=self.unban_user_dialog).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Обновить список", command=self.refresh_users).pack(side=tk.LEFT, padx=5)
 
         # Текстовое поле для списка пользователей
@@ -446,19 +528,123 @@ class DatabaseManager:
             if 'conn' in locals():
                 conn.close()
 
+    def ban_user_dialog(self):
+        users = self.get_users_list()
+        if not users:
+            messagebox.showinfo("Информация", "Нет пользователей для бана")
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Забанить пользователя")
+        dialog.geometry("300x150")
+
+        tk.Label(dialog, text="Выберите пользователя:").pack(pady=5)
+        user_var = tk.StringVar()
+        user_menu = tk.OptionMenu(dialog, user_var, *users)
+        user_menu.pack(pady=5)
+
+        def on_ban():
+            username = user_var.get()
+            if not username:
+                messagebox.showerror("Ошибка", "Выберите пользователя")
+                return
+
+            if not messagebox.askyesno("Подтверждение", f"Забанить пользователя {username}?"):
+                return
+
+            dialog.destroy()
+
+            def run_ban():
+                self.status_label.config(text="Бан пользователя...")
+                try:
+                    ban_user(username)
+                    self.root.after(0, lambda: self.status_label.config(text="Пользователь забанен"))
+                    self.root.after(0, self.refresh_users)
+                except Exception as e:
+                    self.root.after(0, lambda: messagebox.showerror("Ошибка", f"Ошибка бана пользователя: {e}"))
+                    self.root.after(0, lambda: self.status_label.config(text="Ошибка бана пользователя"))
+
+            threading.Thread(target=run_ban, daemon=True).start()
+
+        tk.Button(dialog, text="Забанить", command=on_ban).pack(pady=10)
+
+    def unban_user_dialog(self):
+        banned_users = self.get_banned_users_list()
+        if not banned_users:
+            messagebox.showinfo("Информация", "Нет забаненных пользователей")
+            return
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Разбанить пользователя")
+        dialog.geometry("300x150")
+
+        tk.Label(dialog, text="Выберите пользователя:").pack(pady=5)
+        user_var = tk.StringVar()
+        user_menu = tk.OptionMenu(dialog, user_var, *banned_users)
+        user_menu.pack(pady=5)
+
+        def on_unban():
+            username = user_var.get()
+            if not username:
+                messagebox.showerror("Ошибка", "Выберите пользователя")
+                return
+
+            if not messagebox.askyesno("Подтверждение", f"Разбанить пользователя {username}?"):
+                return
+
+            dialog.destroy()
+
+            def run_unban():
+                self.status_label.config(text="Разбан пользователя...")
+                try:
+                    unban_user(username)
+                    self.root.after(0, lambda: self.status_label.config(text="Пользователь разбанен"))
+                    self.root.after(0, self.refresh_users)
+                except Exception as e:
+                    self.root.after(0, lambda: messagebox.showerror("Ошибка", f"Ошибка разбана пользователя: {e}"))
+                    self.root.after(0, lambda: self.status_label.config(text="Ошибка разбана пользователя"))
+
+            threading.Thread(target=run_unban, daemon=True).start()
+
+        tk.Button(dialog, text="Разбанить", command=on_unban).pack(pady=10)
+
+    def get_banned_users_list(self):
+        try:
+            conn = psycopg2.connect(DATABASE_URL)
+            cursor = conn.cursor()
+            cursor.execute("SELECT username FROM banned ORDER BY username")
+            banned_users = [row[0] for row in cursor.fetchall()]
+            return banned_users
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Ошибка получения списка забаненных: {e}")
+            return []
+        finally:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+
     def get_users_info(self):
         try:
             conn = psycopg2.connect(DATABASE_URL)
             cursor = conn.cursor()
-            cursor.execute("SELECT username, is_admin FROM users ORDER BY username")
+            cursor.execute("SELECT username, password, is_admin FROM users ORDER BY username")
             users = cursor.fetchall()
 
+            # Получаем список забаненных
+            cursor.execute("SELECT username FROM banned")
+            banned_set = set(row[0] for row in cursor.fetchall())
+
             info = "Список пользователей:\n\n"
-            for username, is_admin in users:
+            for username, password, is_admin in users:
                 admin_status = " (админ)" if is_admin else ""
-                info += f"• {username}{admin_status}\n"
+                banned_status = " (ЗАБАНЕН)" if username in banned_set else ""
+                info += f"• {username} | Пароль: {password}{admin_status}{banned_status}\n"
 
             info += f"\nВсего пользователей: {len(users)}"
+
+            if banned_set:
+                info += f"\nЗабанено: {len(banned_set)}"
 
             # Добавляем информацию о бэкапах
             backup_files = [f for f in os.listdir('.') if f.startswith('db_backup_') and f.endswith('.json')]

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"math/rand"
@@ -129,19 +130,26 @@ type UsersData struct {
 	Registered []User   `json:"registered"`
 }
 
+type UpdateResponse struct {
+	UpdateAvailable bool   `json:"update_available"`
+	LatestVersion   string `json:"latest_version"`
+	CurrentVersion  string `json:"current_version,omitempty"`
+}
+
 var (
-	players     = make(map[string]*Player)
-	mobs        = make(map[string]*Mob)
-	projectiles = make(map[string]*Projectile)
-	connections = make(map[string]*websocket.Conn)
-	chatHistory = []ChatMessage{}
-	mutex       = sync.RWMutex{}
-	nextMobID   = 0
-	nextProjID  = 0
-	startTime   = time.Now()
-	usersData   UsersData
-	jwtSecret   = []byte("Z1OyQ327YsrU42QAu/7lLoHSCelASteNxrv61W/Aa70=") // Необходимо заменить на реальный секретный ключ!
-	db          *sql.DB
+	players        = make(map[string]*Player)
+	mobs           = make(map[string]*Mob)
+	projectiles    = make(map[string]*Projectile)
+	connections    = make(map[string]*websocket.Conn)
+	chatHistory    = []ChatMessage{}
+	mutex          = sync.RWMutex{}
+	nextMobID      = 0
+	nextProjID     = 0
+	startTime      = time.Now()
+	usersData      UsersData
+	jwtSecret      = []byte("Z1OyQ327YsrU42QAu/7lLoHSCelASteNxrv61W/Aa70=")
+	db             *sql.DB
+	currentVersion string
 )
 
 const (
@@ -152,6 +160,8 @@ const (
 	PLAYER_SPEED     = 5
 	MOB_SPEED        = 2
 	PROJECTILE_SPEED = 10
+	UPDATE_ZIP_PATH  = "./update.zip"
+	CHUNK_SIZE       = 8192
 )
 
 func initMobs() {
@@ -167,6 +177,16 @@ func initMobs() {
 			LastUpdate: time.Now(),
 		}
 	}
+}
+
+func getLatestVersion() string {
+	var version string
+	err := db.QueryRow("SELECT value FROM app_settings WHERE key = 'latest_version'").Scan(&version)
+	if err != nil {
+		log.Printf("Ошибка получения версии из БД: %v, используем версию по умолчанию", err)
+		return "1.0.0"
+	}
+	return version
 }
 
 func handleCommand(cid string, commandStr string, isAdmin bool) map[string]string {
@@ -305,12 +325,15 @@ func handleCommand(cid string, commandStr string, isAdmin bool) map[string]strin
 		} else {
 			return map[string]string{"error": fmt.Sprintf("Игрок %s не найден.", targetUsername)}
 		}
+	case "/version":
+		return map[string]string{"message": fmt.Sprintf("Версия сервера: %s", currentVersion)}
 	case "/help":
 		helpText := []string{
 			"/ban <имя_пользователя> [причина]",
 			"/kick <имя_пользователя> [причина]",
 			"/list",
 			"/stats",
+			"/version",
 			"/help",
 			"/clear",
 			"/restart",
@@ -472,9 +495,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				message := strings.TrimSpace(msg.Chat)
 				if strings.HasPrefix(message, "/") && isAdmin {
 					response := handleCommand(cid, message, isAdmin)
-					chatHistory = append(chatHistory, ChatMessage{Sender: 0, Message: response["message"]})
+					if response["message"] != "" {
+						chatHistory = append(chatHistory, ChatMessage{Sender: 0, Message: response["message"]})
+					}
 					if response["error"] != "" {
-						chatHistory = append(chatHistory, ChatMessage{Sender: 0, Message: response["error"]})
+						chatHistory = append(chatHistory, ChatMessage{Sender: 0, Message: "Ошибка: " + response["error"]})
 					}
 				} else {
 					username := player.Username
@@ -881,6 +906,125 @@ func loadRegistered() []User {
 	return users
 }
 
+func checkUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
+		return
+	}
+
+	clientVersion := r.URL.Query().Get("version")
+	if clientVersion == "" {
+		http.Error(w, "Версия клиента не указана", http.StatusBadRequest)
+		return
+	}
+
+	// Получаем актуальную версию из базы данных
+	latestVersion := getLatestVersion()
+
+	response := UpdateResponse{
+		UpdateAvailable: clientVersion != latestVersion,
+		LatestVersion:   latestVersion,
+		CurrentVersion:  clientVersion,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-cache")
+	json.NewEncoder(w).Encode(response)
+}
+
+func downloadUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Проверяем существование файла
+	fileInfo, err := os.Stat(UPDATE_ZIP_PATH)
+	if os.IsNotExist(err) {
+		http.Error(w, "Файл обновления не найден", http.StatusNotFound)
+		return
+	}
+
+	// Получаем текущую версию для имени файла
+	latestVersion := getLatestVersion()
+
+	// Устанавливаем правильные заголовки
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"update_%s.zip\"", latestVersion))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+	w.Header().Set("Cache-Control", "no-cache")
+
+	// Открываем и отправляем файл
+	file, err := os.Open(UPDATE_ZIP_PATH)
+	if err != nil {
+		log.Printf("Ошибка открытия файла обновления: %v", err)
+		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	defer file.Close()
+
+	// Используем буферизованную отправку
+	buf := make([]byte, CHUNK_SIZE)
+	_, err = io.CopyBuffer(w, file, buf)
+	if err != nil {
+		log.Printf("Ошибка отправки файла: %v", err)
+	}
+}
+
+func adminBackupHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Проверка авторизации администратора
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		http.Error(w, "Токен не предоставлен", http.StatusUnauthorized)
+		return
+	}
+	if strings.HasPrefix(token, "Bearer ") {
+		token = strings.TrimPrefix(token, "Bearer ")
+	}
+
+	username, err := validateJWT(token)
+	if err != nil {
+		http.Error(w, "Неверный токен", http.StatusUnauthorized)
+		return
+	}
+
+	isAdmin := false
+	for _, admin := range usersData.Admins {
+		if admin == username {
+			isAdmin = true
+			break
+		}
+	}
+	for _, user := range usersData.Registered {
+		if user.Username == username && user.IsAdmin {
+			isAdmin = true
+			break
+		}
+	}
+
+	if !isAdmin {
+		http.Error(w, "Доступ запрещен", http.StatusForbidden)
+		return
+	}
+
+	// Создание бэкапа базы данных
+	backupData := map[string]interface{}{
+		"users":     loadRegistered(),
+		"admins":    loadAdmins(),
+		"banned":    loadBanned(),
+		"version":   currentVersion,
+		"timestamp": time.Now().Unix(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(backupData)
+}
+
 func createTables() {
 	// Создание таблицы пользователей
 	_, err := db.Exec(`
@@ -937,11 +1081,39 @@ func createTables() {
 		log.Fatal("Ошибка создания таблицы players:", err)
 	}
 
+	// Создание таблицы настроек приложения
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS app_settings (
+			key VARCHAR(50) PRIMARY KEY,
+			value TEXT NOT NULL,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		log.Fatal("Ошибка создания таблицы app_settings:", err)
+	}
+
+	// Инициализация версии по умолчанию
+	_, err = db.Exec(`
+		INSERT INTO app_settings (key, value) 
+		VALUES ('latest_version', '1.0.0') 
+		ON CONFLICT (key) DO NOTHING
+	`)
+	if err != nil {
+		log.Printf("Ошибка инициализации версии: %v", err)
+	}
+
 	log.Println("Таблицы созданы успешно")
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
+
+	// Инициализация JWT секрета
+	if len(jwtSecret) == 0 {
+		jwtSecret = []byte("default-secret-key-change-in-production")
+		log.Println("ВНИМАНИЕ: Используется стандартный JWT секрет. Установите JWT_SECRET в переменных окружения.")
+	}
 
 	// Подключение к PostgreSQL
 	databaseURL := os.Getenv("DATABASE_URL")
@@ -955,8 +1127,23 @@ func main() {
 	}
 	defer db.Close()
 
+	// Проверка подключения к БД
+	err = db.Ping()
+	if err != nil {
+		log.Fatal("Ошибка ping к БД:", err)
+	}
+
+	// Настройка пула соединений
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
 	// Создание таблиц
 	createTables()
+
+	// Загрузка текущей версии
+	currentVersion = getLatestVersion()
+	log.Printf("Текущая версия сервера: %s", currentVersion)
 
 	loadUsers()
 	initMobs()
@@ -969,9 +1156,35 @@ func main() {
 	http.HandleFunc("/ws", wsHandler)
 	http.HandleFunc("/register", registerHandler)
 	http.HandleFunc("/login", loginHandler)
+	http.HandleFunc("/check_update", checkUpdateHandler)
+	http.HandleFunc("/download_update", downloadUpdateHandler)
+	http.HandleFunc("/admin/backup", adminBackupHandler)
+
+	// Статический файл для тестирования
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprintf(w, `
+				<html>
+					<head><title>Game Server</title></head>
+					<body>
+						<h1>Game Server v%s</h1>
+						<p>Сервер запущен и работает</p>
+						<ul>
+							<li><a href="/check_update?version=1.0.0">Проверить обновления</a></li>
+							<li>WebSocket: /ws</li>
+							<li>Регистрация: /register</li>
+							<li>Вход: /login</li>
+						</ul>
+					</body>
+				</html>
+			`, currentVersion)
+		}
+	})
 
 	go gameLoop()
 
 	log.Printf("Запуск сервера на порту %s...", port)
+	log.Printf("Текущая версия: %s", currentVersion)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 }

@@ -1,0 +1,5 @@
+- [x] Add constants for client latest version and update ZIP path
+- [x] Add HTTP handlers for /check_update and /download_update in main()
+- [x] Implement checkUpdateHandler function
+- [x] Implement downloadUpdateHandler function
+- [x] Test the update system by running the server and launcher

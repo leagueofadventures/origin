@@ -6,11 +6,13 @@ from datetime import datetime
 import sys
 import getpass
 import tkinter as tk
-from tkinter import messagebox, simpledialog, scrolledtext
+from tkinter import messagebox, simpledialog, scrolledtext, ttk
 import threading
+import requests
 
 # Прямая ссылка на базу данных (только для личного использования)
 DATABASE_URL = "postgresql://game_server_db_user:ekAlZOOApuFwCjQJH3WTYgIETgTJikdo@dpg-d47248m3jp1c73atkceg-a.oregon-postgres.render.com/game_server_db"
+SERVER_HOST = "https://test-server-2zf4.onrender.com"
 
 def backup_database():
     """Создает резервную копию базы данных в JSON формате"""
@@ -24,7 +26,8 @@ def backup_database():
             'timestamp': datetime.now().isoformat(),
             'users': [],
             'admins': [],
-            'banned': []
+            'banned': [],
+            'version': get_current_version()
         }
 
         # Получаем всех пользователей
@@ -59,6 +62,7 @@ def backup_database():
         print(f"Пользователей: {len(backup_data['users'])}")
         print(f"Админов: {len(backup_data['admins'])}")
         print(f"Заблокированных: {len(backup_data['banned'])}")
+        print(f"Версия: {backup_data['version']}")
 
     except psycopg2.Error as e:
         print(f"Ошибка базы данных: {e}")
@@ -100,10 +104,16 @@ def restore_database(backup_file):
             for banned_user in backup_data['banned']:
                 cursor.execute("INSERT INTO banned (username) VALUES (%s)", (banned_user,))
 
+        # Восстанавливаем версию (если есть в бэкапе)
+        if 'version' in backup_data:
+            set_current_version(backup_data['version'])
+
         conn.commit()
         print(f"База данных восстановлена из {backup_file}")
         print(f"Восстановлено пользователей: {len(backup_data['users'])}")
         print(f"Восстановлено заблокированных: {len(backup_data.get('banned', []))}")
+        if 'version' in backup_data:
+            print(f"Версия установлена: {backup_data['version']}")
 
     except FileNotFoundError:
         print(f"Файл {backup_file} не найден")
@@ -272,21 +282,145 @@ def list_users():
         if 'conn' in locals():
             conn.close()
 
+def get_current_version():
+    """Получает текущую версию из базы данных"""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        
+        # Создаем таблицу версий если её нет
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key VARCHAR(50) PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute("SELECT value FROM app_settings WHERE key = 'latest_version'")
+        result = cursor.fetchone()
+        
+        if result:
+            return result[0]
+        else:
+            # Устанавливаем версию по умолчанию
+            default_version = "1.0.0"
+            cursor.execute(
+                "INSERT INTO app_settings (key, value) VALUES ('latest_version', %s)",
+                (default_version,)
+            )
+            conn.commit()
+            return default_version
+            
+    except psycopg2.Error as e:
+        print(f"Ошибка получения версии: {e}")
+        return "1.0.0"
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+def set_current_version(version):
+    """Устанавливает новую версию в базе данных"""
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key VARCHAR(50) PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute(
+            "INSERT INTO app_settings (key, value) VALUES ('latest_version', %s) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP",
+            (version,)
+        )
+        conn.commit()
+        print(f"Версия установлена: {version}")
+        return True
+        
+    except psycopg2.Error as e:
+        print(f"Ошибка установки версии: {e}")
+        return False
+    finally:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'conn' in locals():
+            conn.close()
+
+def test_server_connection():
+    """Проверяет соединение с сервером"""
+    try:
+        response = requests.get(f"{SERVER_HOST}/check_update?version=1.0.0", timeout=5)
+        return response.status_code == 200
+    except:
+        return False
+
 def show_menu():
     """Показывает меню управления"""
-    print("\n=== Панель управления базой данных ===")
+    current_version = get_current_version()
+    print(f"\n=== Панель управления базой данных (v{current_version}) ===")
     print("1. Создать резервную копию")
     print("2. Восстановить из бэкапа")
     print("3. Добавить пользователя")
     print("4. Удалить пользователя")
     print("5. Показать список пользователей")
-    print("6. Выход")
-    print("=" * 40)
+    print("6. Управление версиями")
+    print("7. Выход")
+    print("=" * 50)
+
+def version_management():
+    """Меню управления версиями"""
+    while True:
+        current_version = get_current_version()
+        server_status = "✓ Доступен" if test_server_connection() else "✗ Недоступен"
+        
+        print(f"\n=== Управление версиями ===")
+        print(f"Текущая версия: {current_version}")
+        print(f"Статус сервера: {server_status}")
+        print("1. Установить новую версию")
+        print("2. Проверить обновления на сервере")
+        print("3. Назад")
+        
+        choice = input("Выберите действие (1-3): ").strip()
+        
+        if choice == '1':
+            new_version = input("Введите новую версию (формат X.X.X): ").strip()
+            if new_version and all(part.isdigit() for part in new_version.split('.')):
+                if set_current_version(new_version):
+                    print(f"Версия успешно обновлена на {new_version}")
+                else:
+                    print("Ошибка обновления версии")
+            else:
+                print("Неверный формат версии. Используйте формат X.X.X (например: 1.2.3)")
+                
+        elif choice == '2':
+            print("Проверка обновлений на сервере...")
+            try:
+                response = requests.get(f"{SERVER_HOST}/check_update?version={current_version}", timeout=5)
+                if response.status_code == 200:
+                    update_info = response.json()
+                    print(f"Текущая версия на сервере: {update_info.get('latest_version', 'неизвестно')}")
+                    print(f"Доступно обновление: {'Да' if update_info.get('update_available') else 'Нет'}")
+                else:
+                    print("Ошибка при проверке обновлений")
+            except Exception as e:
+                print(f"Ошибка подключения к серверу: {e}")
+                
+        elif choice == '3':
+            break
+        else:
+            print("Неверный выбор")
 
 def main():
     while True:
         show_menu()
-        choice = input("Выберите действие (1-6): ").strip()
+        choice = input("Выберите действие (1-7): ").strip()
 
         if choice == '1':
             backup_database()
@@ -327,6 +461,8 @@ def main():
         elif choice == '5':
             list_users()
         elif choice == '6':
+            version_management()
+        elif choice == '7':
             print("Выход...")
             break
         else:
@@ -338,7 +474,10 @@ class DatabaseManager:
     def __init__(self, root):
         self.root = root
         self.root.title("Панель управления базой данных")
-        self.root.geometry("600x500")
+        self.root.geometry("700x600")
+        
+        # Центрирование окна
+        self.center_window()
 
         # Создаем виджеты
         self.create_widgets()
@@ -346,26 +485,82 @@ class DatabaseManager:
         # Обновляем список пользователей при запуске
         self.refresh_users()
 
-    def create_widgets(self):
-        # Кнопки действий
-        button_frame = tk.Frame(self.root)
-        button_frame.pack(pady=10)
+    def center_window(self):
+        """Центрирует окно на экране"""
+        self.root.update_idletasks()
+        width = self.root.winfo_width()
+        height = self.root.winfo_height()
+        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.root.winfo_screenheight() // 2) - (height // 2)
+        self.root.geometry(f'700x600+{x}+{y}')
 
-        tk.Button(button_frame, text="Создать бэкап", command=self.backup_database).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Восстановить из бэкапа", command=self.restore_database).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Добавить пользователя", command=self.add_user_dialog).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Удалить пользователя", command=self.delete_user_dialog).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Забанить пользователя", command=self.ban_user_dialog).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Разбанить пользователя", command=self.unban_user_dialog).pack(side=tk.LEFT, padx=5)
-        tk.Button(button_frame, text="Обновить список", command=self.refresh_users).pack(side=tk.LEFT, padx=5)
+    def create_widgets(self):
+        # Основной фрейм
+        main_frame = tk.Frame(self.root)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Фрейм версии и статуса
+        info_frame = tk.Frame(main_frame)
+        info_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.version_label = tk.Label(info_frame, text="Версия: загрузка...", font=("Arial", 10))
+        self.version_label.pack(side=tk.LEFT)
+        
+        self.server_status_label = tk.Label(info_frame, text="Сервер: проверка...", font=("Arial", 10))
+        self.server_status_label.pack(side=tk.RIGHT)
+
+        # Кнопки действий
+        button_frame = tk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(0, 10))
+
+        # Первый ряд кнопок
+        row1_frame = tk.Frame(button_frame)
+        row1_frame.pack(fill=tk.X)
+        
+        tk.Button(row1_frame, text="Создать бэкап", command=self.backup_database, width=15).pack(side=tk.LEFT, padx=2)
+        tk.Button(row1_frame, text="Восстановить из бэкапа", command=self.restore_database, width=18).pack(side=tk.LEFT, padx=2)
+        tk.Button(row1_frame, text="Добавить пользователя", command=self.add_user_dialog, width=18).pack(side=tk.LEFT, padx=2)
+        tk.Button(row1_frame, text="Удалить пользователя", command=self.delete_user_dialog, width=18).pack(side=tk.LEFT, padx=2)
+
+        # Второй ряд кнопок
+        row2_frame = tk.Frame(button_frame)
+        row2_frame.pack(fill=tk.X, pady=(5, 0))
+        
+        tk.Button(row2_frame, text="Забанить пользователя", command=self.ban_user_dialog, width=18).pack(side=tk.LEFT, padx=2)
+        tk.Button(row2_frame, text="Разбанить пользователя", command=self.unban_user_dialog, width=18).pack(side=tk.LEFT, padx=2)
+        tk.Button(row2_frame, text="Управление версиями", command=self.version_management_dialog, width=18).pack(side=tk.LEFT, padx=2)
+        tk.Button(row2_frame, text="Обновить список", command=self.refresh_users, width=15).pack(side=tk.LEFT, padx=2)
 
         # Текстовое поле для списка пользователей
-        self.users_text = scrolledtext.ScrolledText(self.root, width=70, height=20)
-        self.users_text.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+        text_frame = tk.Frame(main_frame)
+        text_frame.pack(fill=tk.BOTH, expand=True)
+        
+        tk.Label(text_frame, text="Информация о базе данных:", font=("Arial", 11, "bold")).pack(anchor=tk.W)
+        self.users_text = scrolledtext.ScrolledText(text_frame, width=80, height=20, font=("Consolas", 9))
+        self.users_text.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
 
         # Статус бар
         self.status_label = tk.Label(self.root, text="Готово", bd=1, relief=tk.SUNKEN, anchor=tk.W)
         self.status_label.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        # Обновляем информацию о версии
+        self.update_version_info()
+
+    def update_version_info(self):
+        """Обновляет информацию о версии и статусе сервера"""
+        def update():
+            current_version = get_current_version()
+            server_available = test_server_connection()
+            
+            self.root.after(0, lambda: self.version_label.config(
+                text=f"Версия: {current_version}"
+            ))
+            self.root.after(0, lambda: self.server_status_label.config(
+                text=f"Сервер: {'✓ Доступен' if server_available else '✗ Недоступен'}",
+                fg="green" if server_available else "red"
+            ))
+        
+        threading.Thread(target=update, daemon=True).start()
 
     def backup_database(self):
         def run_backup():
@@ -389,13 +584,33 @@ class DatabaseManager:
         # Создаем диалог выбора файла
         dialog = tk.Toplevel(self.root)
         dialog.title("Выберите файл бэкапа")
-        dialog.geometry("300x200")
+        dialog.geometry("400x300")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Центрируем диалог
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (300 // 2)
+        dialog.geometry(f'400x300+{x}+{y}')
 
-        listbox = tk.Listbox(dialog, selectmode=tk.SINGLE)
-        listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        tk.Label(dialog, text="Выберите файл для восстановления:", font=("Arial", 10)).pack(pady=10)
+
+        listbox_frame = tk.Frame(dialog)
+        listbox_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        listbox = tk.Listbox(listbox_frame, selectmode=tk.SINGLE, font=("Consolas", 9))
+        scrollbar = tk.Scrollbar(listbox_frame, orient=tk.VERTICAL, command=listbox.yview)
+        listbox.config(yscrollcommand=scrollbar.set)
+        
+        listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         for file in sorted(backup_files, reverse=True):
             listbox.insert(tk.END, file)
+
+        button_frame = tk.Frame(dialog)
+        button_frame.pack(fill=tk.X, pady=10)
 
         def on_select():
             selection = listbox.curselection()
@@ -409,29 +624,46 @@ class DatabaseManager:
                         restore_database(filename)
                         self.root.after(0, lambda: self.status_label.config(text="База данных восстановлена"))
                         self.root.after(0, self.refresh_users)
+                        self.root.after(0, self.update_version_info)
                     except Exception as e:
                         self.root.after(0, lambda: messagebox.showerror("Ошибка", f"Ошибка восстановления: {e}"))
                         self.root.after(0, lambda: self.status_label.config(text="Ошибка восстановления"))
 
                 threading.Thread(target=run_restore, daemon=True).start()
 
-        tk.Button(dialog, text="Восстановить", command=on_select).pack(pady=5)
+        def on_cancel():
+            dialog.destroy()
+
+        tk.Button(button_frame, text="Восстановить", command=on_select, width=12).pack(side=tk.LEFT, padx=10)
+        tk.Button(button_frame, text="Отмена", command=on_cancel, width=12).pack(side=tk.RIGHT, padx=10)
 
     def add_user_dialog(self):
         dialog = tk.Toplevel(self.root)
         dialog.title("Добавить пользователя")
-        dialog.geometry("300x200")
+        dialog.geometry("300x250")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Центрируем диалог
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (300 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (250 // 2)
+        dialog.geometry(f'300x250+{x}+{y}')
 
-        tk.Label(dialog, text="Имя пользователя:").pack(pady=5)
-        username_entry = tk.Entry(dialog)
+        tk.Label(dialog, text="Имя пользователя:", font=("Arial", 10)).pack(pady=10)
+        username_entry = tk.Entry(dialog, width=25, font=("Arial", 10))
         username_entry.pack(pady=5)
+        username_entry.focus()
 
-        tk.Label(dialog, text="Пароль:").pack(pady=5)
-        password_entry = tk.Entry(dialog, show="*")
+        tk.Label(dialog, text="Пароль:", font=("Arial", 10)).pack(pady=10)
+        password_entry = tk.Entry(dialog, show="*", width=25, font=("Arial", 10))
         password_entry.pack(pady=5)
 
         admin_var = tk.BooleanVar()
-        tk.Checkbutton(dialog, text="Администратор", variable=admin_var).pack(pady=5)
+        tk.Checkbutton(dialog, text="Администратор", variable=admin_var, font=("Arial", 10)).pack(pady=10)
+
+        button_frame = tk.Frame(dialog)
+        button_frame.pack(pady=20)
 
         def on_add():
             username = username_entry.get().strip()
@@ -440,6 +672,10 @@ class DatabaseManager:
 
             if not username or not password:
                 messagebox.showerror("Ошибка", "Имя пользователя и пароль обязательны")
+                return
+
+            if len(username) < 3:
+                messagebox.showerror("Ошибка", "Имя пользователя должно содержать минимум 3 символа")
                 return
 
             dialog.destroy()
@@ -456,7 +692,11 @@ class DatabaseManager:
 
             threading.Thread(target=run_add, daemon=True).start()
 
-        tk.Button(dialog, text="Добавить", command=on_add).pack(pady=10)
+        def on_cancel():
+            dialog.destroy()
+
+        tk.Button(button_frame, text="Добавить", command=on_add, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Отмена", command=on_cancel, width=10).pack(side=tk.RIGHT, padx=5)
 
     def delete_user_dialog(self):
         users = self.get_users_list()
@@ -466,12 +706,24 @@ class DatabaseManager:
 
         dialog = tk.Toplevel(self.root)
         dialog.title("Удалить пользователя")
-        dialog.geometry("300x150")
+        dialog.geometry("300x180")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Центрируем диалог
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (300 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (180 // 2)
+        dialog.geometry(f'300x180+{x}+{y}')
 
-        tk.Label(dialog, text="Выберите пользователя:").pack(pady=5)
+        tk.Label(dialog, text="Выберите пользователя:", font=("Arial", 10)).pack(pady=15)
         user_var = tk.StringVar()
-        user_menu = tk.OptionMenu(dialog, user_var, *users)
-        user_menu.pack(pady=5)
+        user_menu = ttk.Combobox(dialog, textvariable=user_var, values=users, state="readonly", width=25)
+        user_menu.pack(pady=10)
+        user_menu.current(0)
+
+        button_frame = tk.Frame(dialog)
+        button_frame.pack(pady=20)
 
         def on_delete():
             username = user_var.get()
@@ -496,7 +748,11 @@ class DatabaseManager:
 
             threading.Thread(target=run_delete, daemon=True).start()
 
-        tk.Button(dialog, text="Удалить", command=on_delete).pack(pady=10)
+        def on_cancel():
+            dialog.destroy()
+
+        tk.Button(button_frame, text="Удалить", command=on_delete, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Отмена", command=on_cancel, width=10).pack(side=tk.RIGHT, padx=5)
 
     def refresh_users(self):
         def run_refresh():
@@ -536,12 +792,24 @@ class DatabaseManager:
 
         dialog = tk.Toplevel(self.root)
         dialog.title("Забанить пользователя")
-        dialog.geometry("300x150")
+        dialog.geometry("300x180")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Центрируем диалог
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (300 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (180 // 2)
+        dialog.geometry(f'300x180+{x}+{y}')
 
-        tk.Label(dialog, text="Выберите пользователя:").pack(pady=5)
+        tk.Label(dialog, text="Выберите пользователя:", font=("Arial", 10)).pack(pady=15)
         user_var = tk.StringVar()
-        user_menu = tk.OptionMenu(dialog, user_var, *users)
-        user_menu.pack(pady=5)
+        user_menu = ttk.Combobox(dialog, textvariable=user_var, values=users, state="readonly", width=25)
+        user_menu.pack(pady=10)
+        user_menu.current(0)
+
+        button_frame = tk.Frame(dialog)
+        button_frame.pack(pady=20)
 
         def on_ban():
             username = user_var.get()
@@ -566,7 +834,11 @@ class DatabaseManager:
 
             threading.Thread(target=run_ban, daemon=True).start()
 
-        tk.Button(dialog, text="Забанить", command=on_ban).pack(pady=10)
+        def on_cancel():
+            dialog.destroy()
+
+        tk.Button(button_frame, text="Забанить", command=on_ban, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Отмена", command=on_cancel, width=10).pack(side=tk.RIGHT, padx=5)
 
     def unban_user_dialog(self):
         banned_users = self.get_banned_users_list()
@@ -576,12 +848,24 @@ class DatabaseManager:
 
         dialog = tk.Toplevel(self.root)
         dialog.title("Разбанить пользователя")
-        dialog.geometry("300x150")
+        dialog.geometry("300x180")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Центрируем диалог
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (300 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (180 // 2)
+        dialog.geometry(f'300x180+{x}+{y}')
 
-        tk.Label(dialog, text="Выберите пользователя:").pack(pady=5)
+        tk.Label(dialog, text="Выберите пользователя:", font=("Arial", 10)).pack(pady=15)
         user_var = tk.StringVar()
-        user_menu = tk.OptionMenu(dialog, user_var, *banned_users)
-        user_menu.pack(pady=5)
+        user_menu = ttk.Combobox(dialog, textvariable=user_var, values=banned_users, state="readonly", width=25)
+        user_menu.pack(pady=10)
+        user_menu.current(0)
+
+        button_frame = tk.Frame(dialog)
+        button_frame.pack(pady=20)
 
         def on_unban():
             username = user_var.get()
@@ -606,7 +890,101 @@ class DatabaseManager:
 
             threading.Thread(target=run_unban, daemon=True).start()
 
-        tk.Button(dialog, text="Разбанить", command=on_unban).pack(pady=10)
+        def on_cancel():
+            dialog.destroy()
+
+        tk.Button(button_frame, text="Разбанить", command=on_unban, width=10).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Отмена", command=on_cancel, width=10).pack(side=tk.RIGHT, padx=5)
+
+    def version_management_dialog(self):
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Управление версиями")
+        dialog.geometry("400x300")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Центрируем диалог
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (300 // 2)
+        dialog.geometry(f'400x300+{x}+{y}')
+
+        # Текущая версия
+        current_version = get_current_version()
+        server_available = test_server_connection()
+        
+        info_frame = tk.Frame(dialog)
+        info_frame.pack(fill=tk.X, padx=20, pady=15)
+        
+        tk.Label(info_frame, text="Текущая версия:", font=("Arial", 10, "bold")).grid(row=0, column=0, sticky="w")
+        tk.Label(info_frame, text=current_version, font=("Arial", 10)).grid(row=0, column=1, sticky="w", padx=(10, 0))
+        
+        tk.Label(info_frame, text="Статус сервера:", font=("Arial", 10, "bold")).grid(row=1, column=0, sticky="w", pady=(5, 0))
+        status_label = tk.Label(info_frame, 
+                               text="✓ Доступен" if server_available else "✗ Недоступен",
+                               fg="green" if server_available else "red",
+                               font=("Arial", 10))
+        status_label.grid(row=1, column=1, sticky="w", padx=(10, 0), pady=(5, 0))
+
+        # Поле для новой версии
+        version_frame = tk.Frame(dialog)
+        version_frame.pack(fill=tk.X, padx=20, pady=15)
+        
+        tk.Label(version_frame, text="Новая версия:", font=("Arial", 10)).pack(anchor="w")
+        version_entry = tk.Entry(version_frame, width=15, font=("Arial", 10))
+        version_entry.pack(anchor="w", pady=(5, 0))
+        version_entry.insert(0, current_version)
+
+        # Кнопки
+        button_frame = tk.Frame(dialog)
+        button_frame.pack(fill=tk.X, padx=20, pady=20)
+
+        def on_set_version():
+            new_version = version_entry.get().strip()
+            if not new_version:
+                messagebox.showerror("Ошибка", "Введите версию")
+                return
+                
+            if not all(part.isdigit() for part in new_version.split('.')):
+                messagebox.showerror("Ошибка", "Неверный формат версии. Используйте X.X.X")
+                return
+                
+            if set_current_version(new_version):
+                messagebox.showinfo("Успех", f"Версия установлена: {new_version}")
+                self.update_version_info()
+                self.refresh_users()
+            else:
+                messagebox.showerror("Ошибка", "Не удалось установить версию")
+
+        def on_check_updates():
+            def check():
+                try:
+                    response = requests.get(f"{SERVER_HOST}/check_update?version={current_version}", timeout=5)
+                    if response.status_code == 200:
+                        update_info = response.json()
+                        server_version = update_info.get('latest_version', 'неизвестно')
+                        has_update = update_info.get('update_available', False)
+                        
+                        message = (f"Версия на сервере: {server_version}\n"
+                                  f"Доступно обновление: {'Да' if has_update else 'Нет'}")
+                        
+                        if has_update and server_version != current_version:
+                            message += f"\n\nРекомендуется установить версию {server_version}"
+                            
+                        self.root.after(0, lambda: messagebox.showinfo("Проверка обновлений", message))
+                    else:
+                        self.root.after(0, lambda: messagebox.showerror("Ошибка", "Не удалось проверить обновления"))
+                except Exception as e:
+                    self.root.after(0, lambda: messagebox.showerror("Ошибка", f"Ошибка подключения: {e}"))
+            
+            threading.Thread(target=check, daemon=True).start()
+
+        def on_close():
+            dialog.destroy()
+
+        tk.Button(button_frame, text="Установить версию", command=on_set_version, width=15).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Проверить обновления", command=on_check_updates, width=15).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Закрыть", command=on_close, width=10).pack(side=tk.RIGHT, padx=5)
 
     def get_banned_users_list(self):
         try:
@@ -634,24 +1012,39 @@ class DatabaseManager:
             # Получаем список забаненных
             cursor.execute("SELECT username FROM banned")
             banned_set = set(row[0] for row in cursor.fetchall())
+            
+            # Получаем текущую версию
+            current_version = get_current_version()
 
-            info = "Список пользователей:\n\n"
+            info = f"=== ИНФОРМАЦИЯ О БАЗЕ ДАННЫХ ===\n"
+            info += f"Текущая версия: {current_version}\n"
+            info += f"Сервер: {'✓ Доступен' if test_server_connection() else '✗ Недоступен'}\n\n"
+            
+            info += "СПИСОК ПОЛЬЗОВАТЕЛЕЙ:\n"
+            info += "-" * 50 + "\n"
+            
             for username, password, is_admin in users:
-                admin_status = " (админ)" if is_admin else ""
+                admin_status = " (АДМИН)" if is_admin else ""
                 banned_status = " (ЗАБАНЕН)" if username in banned_set else ""
                 info += f"• {username} | Пароль: {password}{admin_status}{banned_status}\n"
 
-            info += f"\nВсего пользователей: {len(users)}"
-
+            info += f"\nВСЕГО: {len(users)} пользователей"
+            
+            admin_count = sum(1 for _, _, is_admin in users if is_admin)
+            if admin_count > 0:
+                info += f", {admin_count} админов"
+                
             if banned_set:
-                info += f"\nЗабанено: {len(banned_set)}"
+                info += f", {len(banned_set)} забанено"
 
             # Добавляем информацию о бэкапах
             backup_files = [f for f in os.listdir('.') if f.startswith('db_backup_') and f.endswith('.json')]
             if backup_files:
-                info += f"\n\nДоступные бэкапы: {len(backup_files)}"
-                for file in sorted(backup_files, reverse=True)[:5]:  # Показываем последние 5
-                    info += f"\n  - {file}"
+                info += f"\n\nДОСТУПНЫЕ БЭКАПЫ: {len(backup_files)}\n"
+                info += "-" * 30 + "\n"
+                for file in sorted(backup_files, reverse=True)[:3]:  # Показываем последние 3
+                    file_time = file.replace('db_backup_', '').replace('.json', '')
+                    info += f"  - {file_time} -> {file}\n"
 
             return info
         except Exception as e:
@@ -675,10 +1068,16 @@ if __name__ == "__main__":
             restore_database(sys.argv[2])
         elif sys.argv[1] == 'gui':
             main_gui()
+        elif sys.argv[1] == 'version':
+            if len(sys.argv) > 2:
+                set_current_version(sys.argv[2])
+            else:
+                print(f"Текущая версия: {get_current_version()}")
         else:
             print("Использование:")
             print("  python backup_db.py backup")
             print("  python backup_db.py restore <backup_file.json>")
+            print("  python backup_db.py version [new_version]")
             print("  python backup_db.py gui  # графический интерфейс")
             print("  python backup_db.py      # консольный режим")
     else:

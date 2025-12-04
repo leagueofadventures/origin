@@ -438,6 +438,7 @@ while running:
                     screen.blit(quit_no_button, quit_no_button_rect)
 
             # Обработка нажатий в меню настроек
+            # Обработка нажатий в меню настроек
             elif in_options:
                 # Проверяем нажатия на все переключатели
                 for i in range(3):
@@ -446,28 +447,20 @@ while running:
                         print(f"Toggle {i} changed to: {toggle_states[i]}")
                         # Перерисовываем экран настроек
                         screen.fill(black)
-                        # screen.blit(light_setting_png, (0, 0))
-                        if i == 2:
-                            theme = 'light'
+                        # Определяем текущую тему для фона
+                        current_theme = 'light' if toggle_states[2] else 'dark'
+                        if current_theme == 'light':
                             screen.blit(light_setting_png, (0, 0))
                         else:
-                            if theme == 'dark':
-                                screen.blit(dark_setting_png, (0, 0))
-                            else:
-                                screen.blit(light_setting_png, (0, 0))
-                  
+                            screen.blit(dark_setting_png, (0, 0))
+                        
+                        # Рисуем все переключатели
                         for j in range(3):   
                             if toggle_states[j]:
                                 screen.blit(toggles[j], toggles_rect[j])
                             else:
                                 screen.blit(off_toggles[j], off_toggles_rect[j])
-                                if j == 2:
-                                    theme = 'dark'
-                                    screen.blit(dark_setting_png, (0, 0))
-                                    screen.blit(off_toggles[j], off_toggles_rect[j])
-                           
                         break
-
             # Обработка нажатий на кнопку подтверждения выхода
             if quit_yes_button_rect.collidepoint(event.pos):
                 running = False

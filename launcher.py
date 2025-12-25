@@ -127,8 +127,8 @@ class Launcher:
         self.status_label = tk.Label(main_frame, text="Готов к работе", 
                                     font=("Arial", 9), fg="#666", wraplength=400)
         self.status_label.pack(pady=10)
-
-        # Информация об обновлениях
+                      
+        # Информация об обновлениях 
         self.update_info_label = tk.Label(main_frame, text="", font=("Arial", 8), fg="#888")
         self.update_info_label.pack(pady=5)
 
@@ -521,14 +521,8 @@ class Launcher:
         self.exit_button.config(state=state)
 
 if __name__ == "__main__":
-    # Проверяем наличие необходимых библиотек
-    try:
-        import requests
-    except ImportError:
-        print("Ошибка: Не установлена библиотека requests")
-        print("Установите её: pip install requests")
-        input("Нажмите Enter для выхода...")
-        sys.exit(1)
+  
+        
         
     root = tk.Tk()
     launcher = Launcher(root)

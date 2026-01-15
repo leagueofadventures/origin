@@ -453,7 +453,7 @@ while running:
                         else:
                             screen.blit(off_toggles[i], off_toggles_rect[i])
 
-                # Обработка нажатий на кнопку выхода
+                # Обработка нажатий на кнопку выхода 
                 if quit_button_rect.collidepoint(event.pos):
                     menu = False
                     if theme == 'dark':

@@ -100,7 +100,7 @@ for i in range(1, 12):
         print('Ошибка. Файл не найден')
 
 dark_images = []
-for i in range(1, 11):
+for i in range(1, 10):
     try:
         dark_name_image = str(i) + '.png'
         dark_image_file = os.path.join(PROJECT_DIR, 'images', 'dark', dark_name_image)
@@ -120,13 +120,15 @@ except FileNotFoundError:
     sys.exit()
 
 #Загрузка меню паузы 
-pause_file = os.path.join(PROJECT_DIR, 'images', 'pause.jpg')
-try:
-    pause_png = pygame.transform.scale(pygame.image.load(pause_file), screen.get_size())
-except FileNotFoundError:
-    print('Ошибка. Файл "pause.png" не найден')
-    pygame.quit()
-    sys.exit()
+
+pause_png = None
+# pause_file = os.path.join(PROJECT_DIR, 'images', 'pause.jpg')
+# try:
+#     pause_png = pygame.transform.scale(pygame.image.load(pause_file), screen.get_size())
+# except FileNotFoundError:
+#     print('Ошибка. Файл "pause.png" не найден')
+#     pygame.quit()
+#     sys.exit()
 
 
 # Загрузка картинки меню выхода
@@ -503,12 +505,12 @@ while running:
                     solo_time = True
                     in_pause = False
 
-    if in_pause:
-        # Очищаем экран и рисуем меню паузы
-        screen.blit(pause_png, (0, 0))
-        screen.blit(continue_solo_button, continue_solo_button_rect)
-        pygame.display.flip()
-        continue  # Пропускаем остальную отрисовку
+    # if in_pause:
+    #     # Очищаем экран и рисуем меню паузы
+    #     screen.blit(pause_png, (0, 0))
+    #     screen.blit(continue_solo_button, continue_solo_button_rect)
+    #     pygame.display.flip()
+    #     continue  # Пропускаем остальную отрисовку
 
 
     # Смена картинок по кд

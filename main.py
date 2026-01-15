@@ -67,7 +67,7 @@ for i in range(3):
         image_rect = image.get_rect()
         toggles_rect.append(image_rect)
         toggles.append(image)
-        
+        print('toggle SOSA')
     except FileNotFoundError:
         print('Ошибка. Один из toggle не найден') 
 
@@ -81,17 +81,9 @@ for i in range(3):
         image_rect = image.get_rect()
         off_toggles_rect.append(image_rect)
         off_toggles.append(image)
-        
+        print('off_toggle SOSA')
     except FileNotFoundError:
         print('Ошибка. Один из off_toggle не найден')
-
-
-
-
-
-    
-    
-
 
 # Состояния переключателей (True = включен, False = выключен)
 toggle_states = [False, False, False]
@@ -114,7 +106,7 @@ for i in range(1, 11):
         dark_image_file = os.path.join(PROJECT_DIR, 'images', 'dark', dark_name_image)
         dark_image = pygame.transform.scale(pygame.image.load(dark_image_file), screen.get_size())
         dark_images.append(dark_image)
-        
+        print("Все норм")
     except FileNotFoundError:
         print('Ошибка. Файл dark не найден')
 
@@ -461,7 +453,7 @@ while running:
                         else:
                             screen.blit(off_toggles[i], off_toggles_rect[i])
 
-                # Обработка нажатий на кнопку выхода
+                # Обработка нажатий на кнопку выхода 
                 if quit_button_rect.collidepoint(event.pos):
                     menu = False
                     if theme == 'dark':
@@ -618,9 +610,6 @@ while running:
                         draw_square(screen, pos['x'] - camera_x, pos['y'] - camera_y, (0, 0, 255))  # Blue for others
 
             # Draw mobs
-         
-            
-            
             for mid, mob in mobs.items():
                 draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))  # Red for mobs
 

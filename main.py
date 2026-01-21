@@ -14,7 +14,7 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Парсинг аргументов командной строки
 parser = argparse.ArgumentParser(description='Игровой клиент')
-parser.add_argument('--server', '-s', type=str, default='wss://test-server-2zf4.onrender.com/ws', help='WebSocket URL сервера')
+parser.add_argument('--server', '-s', type=str, default='wss://league-of-adventures.onrender.com/ws', help='WebSocket URL сервера')
 parser.add_argument('--windowed', '-w', action='store_true', help='Оконный режим')
 
 args = parser.parse_args()

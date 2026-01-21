@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 
 # Настройки сервера
-SERVER_HOST = "https://test-server-2zf4.onrender.com"
+SERVER_HOST = "https://league-of-adventures.onrender.com"
 CLIENT_VERSION = "1.0.0"  # Будет обновляться автоматически
 UPDATE_CHECK_TIMEOUT = 10
 DOWNLOAD_TIMEOUT = 30

@@ -196,7 +196,7 @@ quit_no_button.fill((0, 0, 0, 250))
 quit_no_button_rect = quit_no_button.get_rect(topleft=(975, 590))
 
 continue_solo_button = pygame.Surface((470, 130), pygame.SRCALPHA)
-continue_solo_button.fill((0, 0, 0, 255))
+continue_solo_button.fill((0, 0, 0, 0))
 continue_solo_button_rect = continue_solo_button.get_rect(topleft=(738, 516))
 
 # Загрузка спрайтов персонажа
@@ -274,6 +274,7 @@ running = True
 chat_input_mode = False
 chat_input_text = ""
 in_pause = False
+image_counter = 0
 
 # WebSocket connection
 def on_message(ws, message):
@@ -391,13 +392,13 @@ while running:
                     menu = True
                     screen.fill(black)
 
-                # elif solo_time:
-                #     in_pause = True
-                #     # print(in_pause)
-                #     pause_start_time = pygame.time.get_ticks()
-                #     # solo_time = False
-                #     # screen.blit(pause_png, (0, 0))
-                #     # screen.blit(continue_solo_button, continue_solo_button_rect) 
+                elif solo_time:
+                    in_pause = True
+                    # print(in_pause)
+                    pause_start_time = pygame.time.get_ticks()
+                    # solo_time = False
+                    # screen.blit(pause_png, (0, 0))
+                    # screen.blit(continue_solo_button, continue_solo_button_rect) 
 
 
                 
@@ -454,7 +455,9 @@ while running:
                     screen.fill(black)
                     if theme == 'light':
                         screen.blit(light_setting_png, (0, 0))
+                        print(f'theme = {theme}')
                     elif theme == 'dark':
+                        print(f'theme = {theme}')
                         screen.blit(dark_setting_png, (0, 0))
                     # Рисуем переключатели в соответствии с их состояниями
                     for i in range(3):
@@ -487,8 +490,10 @@ while running:
                         # Определяем текущую тему для фона
                         current_theme = 'light' if toggle_states[2] else 'dark'
                         if current_theme == 'light':
+                            theme = 'light'
                             screen.blit(light_setting_png, (0, 0))
                         else:
+                            theme = 'dark'
                             screen.blit(dark_setting_png, (0, 0))
                         
                         # Рисуем все переключатели
@@ -506,74 +511,74 @@ while running:
             if quit_no_button_rect.collidepoint(event.pos):
                 menu = True
 
-            # if in_pause:
-            #     if continue_solo_button_rect.collidepoint(event.pos):
-            #         # screen.fill(black)
-            #         pause_close_time += pygame.time.get_ticks() - pause_start_time
-            #         print('solo_time')
-            #         solo_time = True
-            #         in_pause = False
+            if in_pause:
+                if continue_solo_button_rect.collidepoint(event.pos):
+                    screen.fill(black)
+                    pause_close_time += pygame.time.get_ticks() - pause_start_time
+                    print('solo_time')
+                    solo_time = True
+                    in_pause = False
 
-    # if in_pause:
-    #     # Очищаем экран и рисуем меню паузы
-    #     screen.blit(pause_png, (0, 0))
-    #     screen.blit(continue_solo_button, continue_solo_button_rect)
-    #     pygame.display.flip()
-    #     continue  # Пропускаем остальную отрисовку
+    if in_pause:
+        # Очищаем экран и рисуем меню паузы
+        screen.blit(pause_png, (0, 0))
+        screen.blit(continue_solo_button, continue_solo_button_rect)
+        pygame.display.flip()
+        continue  # Пропускаем остальную отрисовку
 
 
     # Смена картинок по кд
-    # if not in_pause:
-    if solo_time:
-        # if theme == 'dark':
-        elapsed = pygame.time.get_ticks() - solo_start_time #- pause_close_time
-        if elapsed >= change_time:
-            screen.blit(dark_images[1], (0, 0))
-            if elapsed >= change_time + 8000:
-                screen.blit(dark_images[2], (0, 0))
-                if elapsed >= change_time + 16000:
-                    screen.blit(dark_images[3], (0, 0))
-                    if elapsed >= change_time + 24000:
-                        screen.blit(dark_images[4], (0, 0))
-                        if elapsed >= change_time + 32000:
-                            screen.blit(dark_images[5], (0, 0))
-                            if elapsed >= change_time + 40000:
-                                screen.blit(dark_images[6], (0, 0))
-                                if elapsed >= change_time + 48000:
-                                    screen.blit(dark_images[7], (0, 0))
-                                    if elapsed >= change_time + 56000:
-                                        screen.blit(dark_images[8], (0, 0))
-                                        if elapsed >= change_time + 64000:
-                                            screen.blit(dark_images[9], (0, 0)) 
-                                        #         if elapsed >= change_time + 72000:
-                                        #             screen.blit(dark_images[10], (0, 0))
-                                        #             if elapsed >= change_time + 80000:
-                                        #                 screen.blit(dark_images[11], (0, 0))
+    if not in_pause:
+        if solo_time:
+            if theme == 'dark':
+                elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
+                if elapsed >= change_time:
+                    screen.blit(dark_images[1], (0, 0))
+                    if elapsed >= change_time + 8000:
+                        screen.blit(dark_images[2], (0, 0))
+                        if elapsed >= change_time + 16000:
+                            screen.blit(dark_images[3], (0, 0))
+                            if elapsed >= change_time + 24000:
+                                screen.blit(dark_images[4], (0, 0))
+                                if elapsed >= change_time + 32000:
+                                    screen.blit(dark_images[5], (0, 0))
+                                    if elapsed >= change_time + 40000:
+                                        screen.blit(dark_images[6], (0, 0))
+                                        if elapsed >= change_time + 48000:
+                                            screen.blit(dark_images[7], (0, 0))
+                                            if elapsed >= change_time + 56000:
+                                                screen.blit(dark_images[8], (0, 0))
+                                                if elapsed >= change_time + 64000:
+                                                    screen.blit(dark_images[9], (0, 0)) 
+                                                #         if elapsed >= change_time + 72000:
+                                                #             screen.blit(dark_images[10], (0, 0))
+                                                #             if elapsed >= change_time + 80000:
+                                                #                 screen.blit(dark_images[11], (0, 0))
 
-        # if theme == 'light':
-        #     elapsed = pygame.time.get_ticks() - solo_start_time
-        #     if elapsed >= change_time:
-        #         screen.blit(light_images[1], (0, 0))
-        #         if elapsed >= change_time + 8000:
-        #             screen.blit(light_images[2], (0, 0))
-        #             if elapsed >= change_time + 16000:
-        #                 screen.blit(light_images[3], (0, 0))
-        #                 if elapsed >= change_time + 24000:
-        #                     screen.blit(light_images[4], (0, 0))
-        #                     if elapsed >= change_time + 32000:
-        #                         screen.blit(light_images[5], (0, 0))
-        #                         if elapsed >= change_time + 40000:
-        #                             screen.blit(light_images[6], (0, 0))
-        #                             if elapsed >= change_time + 48000:
-        #                                 screen.blit(light_images[7], (0, 0))
-        #                                 if elapsed >= change_time + 56000:
-        #                                     screen.blit(light_images[8], (0, 0))
-        #                                     if elapsed >= change_time + 64000:
-        #                                         screen.blit(light_images[9], (0, 0))
-        #                                         if elapsed >= change_time + 72000:
-        #                                             screen.blit(light_images[10], (0, 0))
-        #                                             if elapsed >= change_time + 80000:
-        #                                                 screen.blit(light_images[11], (0, 0))
+            if theme == 'light':
+                elapsed = pygame.time.get_ticks() - solo_start_time
+                if elapsed >= change_time:
+                    screen.blit(light_images[1], (0, 0))
+                    if elapsed >= change_time + 8000:
+                        screen.blit(light_images[2], (0, 0))
+                        if elapsed >= change_time + 16000:
+                            screen.blit(light_images[3], (0, 0))
+                            if elapsed >= change_time + 24000:
+                                screen.blit(light_images[4], (0, 0))
+                                if elapsed >= change_time + 32000:
+                                    screen.blit(light_images[5], (0, 0))
+                                    if elapsed >= change_time + 40000:
+                                        screen.blit(light_images[6], (0, 0))
+                                        if elapsed >= change_time + 48000:
+                                            screen.blit(light_images[7], (0, 0))
+                                            if elapsed >= change_time + 56000:
+                                                screen.blit(light_images[8], (0, 0))
+                                                if elapsed >= change_time + 64000:
+                                                    screen.blit(light_images[9], (0, 0))
+                                                    if elapsed >= change_time + 72000:
+                                                        screen.blit(light_images[10], (0, 0))
+                                                        if elapsed >= change_time + 80000:
+                                                            screen.blit(light_images[11], (0, 0))
         
         
     if multi_play:

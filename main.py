@@ -14,7 +14,7 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Парсинг аргументов командной строки
 parser = argparse.ArgumentParser(description='Игровой клиент')
-parser.add_argument('--server', '-s', type=str, default='wss://league-of-adventures.onrender.com/ws', help='WebSocket URL сервера')
+parser.add_argument('--server', '-s', type=str, default= 'wss://league-of-adventures.onrender.com/ws', help='WebSocket URL сервера')
 parser.add_argument('--windowed', '-w', action='store_true', help='Оконный режим')
 
 args = parser.parse_args()
@@ -358,6 +358,7 @@ def collides_with_objects(x, y, size):
     return False
 
 multi_play = False
+chat = False
 
 # Установка позиций для переключателей при инициализации
 toggles_rect[0].topleft = (1277, 441)
@@ -402,25 +403,26 @@ while running:
 
 
                 
-            elif event.key == pygame.K_t:  # T for chat
-                chat_input_mode = not chat_input_mode
-                if chat_input_mode:
-                    chat_input_text = ""
-            elif chat_input_mode:
-                if event.key == pygame.K_RETURN:
-                    if chat_input_text.strip():
-                        if ws and ws.sock and ws.sock.connected:
-                            try:
-                                ws.send(json.dumps({'type': 'input', 'chat': chat_input_text.strip()}))
-                            except Exception as e:
-                                print(f"Chat send error: {e}")
+            if not chat:
+                if event.key == pygame.K_t:# T for chat
+                    chat_input_mode = not chat_input_mode
+                    if chat_input_mode:
                         chat_input_text = ""
-                        chat_input_mode = False
-                elif event.key == pygame.K_BACKSPACE:
-                    chat_input_text = chat_input_text[:-1]
-                else:
-                    if event.unicode.isprintable():
-                        chat_input_text += event.unicode
+                elif chat_input_mode:
+                    if event.key == pygame.K_RETURN:
+                        if chat_input_text.strip():
+                            if ws and ws.sock and ws.sock.connected:
+                                try:
+                                    ws.send(json.dumps({'type': 'input', 'chat': chat_input_text.strip()}))
+                                except Exception as e:
+                                    print(f"Chat send error: {e}")
+                            chat_input_text = ""
+                            chat_input_mode = False
+                    elif event.key == pygame.K_BACKSPACE:
+                        chat_input_text = chat_input_text[:-1]
+                    else:
+                        if event.unicode.isprintable():
+                            chat_input_text += event.unicode
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             x, y = event.pos
@@ -661,10 +663,10 @@ while running:
         keys = pygame.key.get_pressed()
         inputs = {
             'type': 'input',
-            'left': keys[pygame.K_LEFT],
-            'right': keys[pygame.K_RIGHT],
-            'up': keys[pygame.K_UP],
-            'down': keys[pygame.K_DOWN],
+            'left': keys[pygame.K_a],
+            'right': keys[pygame.K_d],
+            'up': keys[pygame.K_w],
+            'down': keys[pygame.K_s],
             'attack': keys[pygame.K_SPACE]
         }
         if ws and ws.sock and ws.sock.connected:

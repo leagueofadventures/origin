@@ -67,7 +67,6 @@ for i in range(3):
         image_rect = image.get_rect()
         toggles_rect.append(image_rect)
         toggles.append(image)
-        print('toggle SOSA')
     except FileNotFoundError:
         print('Ошибка. Один из toggle не найден') 
 
@@ -81,7 +80,6 @@ for i in range(3):
         image_rect = image.get_rect()
         off_toggles_rect.append(image_rect)
         off_toggles.append(image)
-        print('off_toggle SOSA')
     except FileNotFoundError:
         print('Ошибка. Один из off_toggle не найден')
 
@@ -90,23 +88,22 @@ toggle_states = [False, False, False]
 
 # Загрузка изображений для текстовой части игры
 light_images = []
-for i in range(1, 12):
+for i in range(1, 11):
     try:
         light_name_image = str(i) + '.png'
         light_image_file = os.path.join(PROJECT_DIR, 'images', 'light', light_name_image)
         light_image = pygame.transform.scale(pygame.image.load(light_image_file), screen.get_size())
         light_images.append(light_image)
     except FileNotFoundError:
-        print('Ошибка. Файл не найден')
+        print('Ошибка. Файл light не найден')
 
 dark_images = []
-for i in range(1, 11):
+for i in range(1, 10):
     try:
         dark_name_image = str(i) + '.png'
         dark_image_file = os.path.join(PROJECT_DIR, 'images', 'dark', dark_name_image)
         dark_image = pygame.transform.scale(pygame.image.load(dark_image_file), screen.get_size())
         dark_images.append(dark_image)
-        print("Все норм")
     except FileNotFoundError:
         print('Ошибка. Файл dark не найден')
 
@@ -681,12 +678,12 @@ while running:
 
     # Отрисовка меню
     if menu:
-        screen.fill((0, 0, 0))
+        # screen.fill((0, 0, 0))
         screen.blit(menu_png, (0, 0))
-        screen.blit(multi_play_button, multi_play_button_rect)
-        screen.blit(options_button, options_button_rect)
-        screen.blit(quit_button, quit_button_rect)
-        screen.blit(solo_play_button, solo_play_button_rect)
+        # screen.blit(multi_play_button, multi_play_button_rect)
+        # screen.blit(options_button, options_button_rect)
+        # screen.blit(quit_button, quit_button_rect)
+        # screen.blit(solo_play_button, solo_play_button_rect)
     pygame.display.flip()
 
 if ws:

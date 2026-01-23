@@ -403,12 +403,14 @@ while running:
 
 
                 
-            if not chat:
-                if event.key == pygame.K_t:# T for chat
-                    chat_input_mode = not chat_input_mode
-                    if chat_input_mode:
-                        chat_input_text = ""
-                elif chat_input_mode:
+          
+            if event.key == pygame.K_t and not chat_input_mode:# T for chat
+                chat_input_mode = not chat_input_mode
+                print(f"chat_input_mode: {chat_input_mode}")
+                if chat_input_mode:
+                    chat_input_text = ""
+            elif event.type == pygame.KEYDOWN and chat_input_mode:
+                if chat_input_mode:
                     if event.key == pygame.K_RETURN:
                         if chat_input_text.strip():
                             if ws and ws.sock and ws.sock.connected:
@@ -420,7 +422,7 @@ while running:
                             chat_input_mode = False
                     elif event.key == pygame.K_BACKSPACE:
                         chat_input_text = chat_input_text[:-1]
-                    else:
+                    else: 
                         if event.unicode.isprintable():
                             chat_input_text += event.unicode
 
@@ -492,6 +494,7 @@ while running:
                         # Определяем текущую тему для фона
                         current_theme = 'light' if toggle_states[2] else 'dark'
                         if current_theme == 'light':
+                            
                             theme = 'light'
                             screen.blit(light_setting_png, (0, 0))
                         else:
@@ -636,27 +639,28 @@ while running:
                 draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  # Red circle for projectiles
 
             # Draw chat
-            rect_width = 400
-            rect_height = 250 + (30 if chat_input_mode else 0)
-            rect_x = 10 
-            rect_y = height - rect_height - 10
-            chat_surface = pygame.Surface((rect_width, rect_height), pygame.SRCALPHA)
-            chat_surface.fill((0, 0, 0, 128))
-            screen.blit(chat_surface, (rect_x, rect_y))
-            y_offset = rect_y + 10
-            for msg in client_chat_history[-8:]:
-                text = font.render(msg['message'], True, (255, 255, 255))
-                if y_offset + text.get_height() > rect_y + rect_height - (30 if chat_input_mode else 0):
-                    break
-                screen.blit(text, (rect_x + 10, y_offset))
-                y_offset += 25
             if chat_input_mode:
-                input_y = rect_y + rect_height - 30
-                input_surface = pygame.Surface((rect_width, 30), pygame.SRCALPHA)
-                input_surface.fill((0, 0, 0, 128))
-                screen.blit(input_surface, (rect_x, input_y))
-                input_text = font.render("> " + chat_input_text, True, (255, 255, 255))
-                screen.blit(input_text, (rect_x + 10, input_y + 5))
+                rect_width = 400
+                rect_height = 250 + (30 if chat_input_mode else 0)
+                rect_x = 10 
+                rect_y = height - rect_height - 10
+                chat_surface = pygame.Surface((rect_width, rect_height), pygame.SRCALPHA)
+                chat_surface.fill((0, 0, 0, 128))
+                screen.blit(chat_surface, (rect_x, rect_y))
+                y_offset = rect_y + 10
+                for msg in client_chat_history[-8:]:
+                    text = font.render(msg['message'], True, (255, 255, 255))
+                    if y_offset + text.get_height() > rect_y + rect_height - (30 if chat_input_mode else 0):
+                        break
+                    screen.blit(text, (rect_x + 10, y_offset))
+                    y_offset += 25
+                if chat_input_mode:
+                    input_y = rect_y + rect_height - 30
+                    input_surface = pygame.Surface((rect_width, 30), pygame.SRCALPHA)
+                    input_surface.fill((0, 0, 0, 128))
+                    screen.blit(input_surface, (rect_x, input_y))
+                    input_text = font.render("> " + chat_input_text, True, (255, 255, 255))
+                    screen.blit(input_text, (rect_x + 10, input_y + 5))
 
     if not chat_input_mode and not menu and not solo_time and not in_options:
         # Send inputs

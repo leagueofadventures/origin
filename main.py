@@ -14,7 +14,7 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Парсинг аргументов командной строки
 parser = argparse.ArgumentParser(description='Игровой клиент')
-parser.add_argument('--server', '-s', type=str, default= 'wss://league-of-adventures.onrender.com/ws', help='WebSocket URL сервера')
+parser.add_argument('--server', '-s', type=str, default='wss://league-of-adventures.onrender.com/ws', help='WebSocket URL сервера')
 parser.add_argument('--windowed', '-w', action='store_true', help='Оконный режим')
 
 args = parser.parse_args()
@@ -48,6 +48,7 @@ menu = True
 in_options = False  # Добавляем флаг для меню настроек
 solo_time = False
 solo_start_time = 0
+pause_close_time = 0  # Добавляем переменную для учета времени паузы
 change_time = 8000
 
 theme = 'dark'
@@ -116,7 +117,7 @@ except FileNotFoundError:
     pygame.quit()
     sys.exit()
 
-#Загрузка меню паузы 
+# Загрузка меню паузы 
 pause_file = os.path.join(PROJECT_DIR, 'images', 'pause.jpg')
 try:
     pause_png = pygame.transform.scale(pygame.image.load(pause_file), screen.get_size())
@@ -124,7 +125,6 @@ except FileNotFoundError:
     print('Ошибка. Файл "pause.png" не найден')
     pygame.quit()
     sys.exit()
-
 
 # Загрузка картинки меню выхода
 dark_quit_file = os.path.join(PROJECT_DIR, 'images', 'dark', 'quit_menu.jpg')
@@ -162,39 +162,38 @@ except FileNotFoundError:
     pygame.quit()
     sys.exit()
 
-
-
-
 # Создание кнопок главного меню
-solo_play_button = pygame.Surface((500, 70), pygame.SRCALPHA)
-solo_play_button.fill((0, 0, 0, 250))
-solo_play_button_rect = solo_play_button.get_rect()
-
-#solo_play_button_rect = pygame.Rect(500, 70, 679, 610)
+solo_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
+solo_play_button.fill((0, 0, 0, 0))
+solo_play_button_rect = solo_play_button.get_rect(topleft=(815, 605))
 
 multi_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-multi_play_button.fill((0, 0, 0, 250))
+multi_play_button.fill((0, 0, 0, 0))
 multi_play_button_rect = multi_play_button.get_rect(topleft=(820, 720))
 
 options_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-options_button.fill((0, 0, 0, 250))
+options_button.fill((0, 0, 0, 0))
 options_button_rect = options_button.get_rect(topleft=(820, 820))
 
 quit_button = pygame.Surface((270, 70), pygame.SRCALPHA)
-quit_button.fill((0, 0, 0, 250))
+quit_button.fill((0, 0, 0, 0))
 quit_button_rect = quit_button.get_rect(topleft=(830, 920))
 
 quit_yes_button = pygame.Surface((160, 65), pygame.SRCALPHA)
-quit_yes_button.fill((0, 0, 0, 250))
+quit_yes_button.fill((0, 0, 0, 0))
 quit_yes_button_rect = quit_yes_button.get_rect(topleft=(785, 590))
 
 quit_no_button = pygame.Surface((160, 65), pygame.SRCALPHA)
-quit_no_button.fill((0, 0, 0, 250))
+quit_no_button.fill((0, 0, 0, 0))
 quit_no_button_rect = quit_no_button.get_rect(topleft=(975, 590))
 
 continue_solo_button = pygame.Surface((470, 130), pygame.SRCALPHA)
-continue_solo_button.fill((0, 0, 0, 0))
+continue_solo_button.fill((0, 0, 0, 250))
 continue_solo_button_rect = continue_solo_button.get_rect(topleft=(738, 516))
+
+exit_to_menu_button = pygame.Surface((470, 130), pygame.SRCALPHA)
+exit_to_menu_button.fill((0, 0, 0, 250))
+exit_to_menu_button_rect = exit_to_menu_button.get_rect(topleft=(739, 687))
 
 # Загрузка спрайтов персонажа
 player_sprites = {}
@@ -272,6 +271,7 @@ chat_input_mode = False
 chat_input_text = ""
 in_pause = False
 image_counter = 0
+in_quit = False
 
 # WebSocket connection
 def on_message(ws, message):
@@ -366,6 +366,9 @@ off_toggles_rect[0].topleft = (1277, 441)
 off_toggles_rect[1].topleft = (1277, 576)
 off_toggles_rect[2].topleft = (1277, 711)
 
+# Переменная для хранения времени начала паузы
+pause_start_time = 0
+
 while running:
     clock = pygame.time.Clock()
     clock.tick(60)
@@ -389,19 +392,18 @@ while running:
                     multi_play = False
                     menu = True
                     screen.fill(black)
-
-                elif solo_time:
+                    
+                elif solo_time and not in_pause:
+                    solo_time = False
                     in_pause = True
-                    # print(in_pause)
                     pause_start_time = pygame.time.get_ticks()
-                    # solo_time = False
-                    # screen.blit(pause_png, (0, 0))
-                    # screen.blit(continue_solo_button, continue_solo_button_rect) 
-
-
-                
-          
-            if event.key == pygame.K_t and not chat_input_mode:# T for chat
+                elif in_pause:
+                    # Если уже в паузе, нажатие ESC выходит из паузы
+                    in_pause = False
+                    solo_time = True
+                    pause_close_time += pygame.time.get_ticks() - pause_start_time
+            
+            if event.key == pygame.K_t and not chat_input_mode:  # T for chat
                 chat_input_mode = not chat_input_mode
                 print(f"chat_input_mode: {chat_input_mode}")
                 if chat_input_mode:
@@ -423,7 +425,7 @@ while running:
                         if event.unicode.isprintable():
                             chat_input_text += event.unicode
 
-        if event.type == pygame.MOUSEBUTTONDOWN:
+        if event.type == pygame.MOUSEBUTTONDOWN: 
             x, y = event.pos
             print(f"Click at: {x}, {y}")
             
@@ -441,9 +443,6 @@ while running:
                     else:
                         screen.blit(light_images[0], (0, 0))
               
-                
-
-
                 if multi_play_button_rect.collidepoint(event.pos):
                     multi_play = True
                     menu = False
@@ -470,6 +469,7 @@ while running:
 
                 # Обработка нажатий на кнопку выхода 
                 if quit_button_rect.collidepoint(event.pos):
+                    in_quit = True
                     menu = False
                     if theme == 'dark':
                         screen.blit(dark_quit_png, (0, 0))
@@ -478,9 +478,22 @@ while running:
                     screen.blit(quit_yes_button, quit_yes_button_rect)
                     screen.blit(quit_no_button, quit_no_button_rect)
 
+            if in_pause:
+                if exit_to_menu_button_rect.collidepoint(event.pos):
+                    in_pause = False
+                    solo_time = False
+                    menu = True
+                    continue
+
+                if continue_solo_button_rect.collidepoint(event.pos):
+                    in_pause = False
+                    solo_time = True
+                    pause_close_time += pygame.time.get_ticks() - pause_start_time
+                    print('Пауза снята, продолжаем играть')
+                    continue
+            
             # Обработка нажатий в меню настроек
-            # Обработка нажатий в меню настроек
-            elif in_options:
+            if in_options:
                 # Проверяем нажатия на все переключатели
                 for i in range(3):
                     if toggles_rect[i].collidepoint(event.pos) or off_toggles_rect[i].collidepoint(event.pos):
@@ -491,7 +504,6 @@ while running:
                         # Определяем текущую тему для фона
                         current_theme = 'light' if toggle_states[2] else 'dark'
                         if current_theme == 'light':
-                            
                             theme = 'light'
                             screen.blit(light_setting_png, (0, 0))
                         else:
@@ -505,84 +517,79 @@ while running:
                             else:
                                 screen.blit(off_toggles[j], off_toggles_rect[j])
                         break
-            # Обработка нажатий на кнопку подтверждения выхода
-            if quit_yes_button_rect.collidepoint(event.pos):
-                running = False
             
-            # Обработка нажатий на кнопку отказа от выхода
-            if quit_no_button_rect.collidepoint(event.pos):
-                menu = True
+            # Обработка нажатий на кнопку подтверждения выхода
+            if in_quit:
+                if quit_yes_button_rect.collidepoint(event.pos):
+                    running = False
+                
+                # Обработка нажатий на кнопку отказа от выхода
+                if quit_no_button_rect.collidepoint(event.pos):
+                    menu = True
+                    in_quit = False
 
-            if in_pause:
-                if continue_solo_button_rect.collidepoint(event.pos):
-                    screen.fill(black)
-                    pause_close_time += pygame.time.get_ticks() - pause_start_time
-                    print('solo_time')
-                    solo_time = True
-                    in_pause = False
-
+    # Отрисовка меню паузы
     if in_pause:
-        # Очищаем экран и рисуем меню паузы
         screen.blit(pause_png, (0, 0))
+        screen.blit(exit_to_menu_button, exit_to_menu_button_rect)
         screen.blit(continue_solo_button, continue_solo_button_rect)
         pygame.display.flip()
         continue  # Пропускаем остальную отрисовку
 
-
     # Смена картинок по кд
-    if not in_pause:
-        if solo_time:
-            if theme == 'dark':
-                elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
-                if elapsed >= change_time:
-                    screen.blit(dark_images[1], (0, 0))
-                    if elapsed >= change_time + 8000:
-                        screen.blit(dark_images[2], (0, 0))
-                        if elapsed >= change_time + 16000:
-                            screen.blit(dark_images[3], (0, 0))
-                            if elapsed >= change_time + 24000:
-                                screen.blit(dark_images[4], (0, 0))
-                                if elapsed >= change_time + 32000:
-                                    screen.blit(dark_images[5], (0, 0))
-                                    if elapsed >= change_time + 40000:
-                                        screen.blit(dark_images[6], (0, 0))
-                                        if elapsed >= change_time + 48000:
-                                            screen.blit(dark_images[7], (0, 0))
-                                            if elapsed >= change_time + 56000:
-                                                screen.blit(dark_images[8], (0, 0))
-                                                if elapsed >= change_time + 64000:
-                                                    screen.blit(dark_images[9], (0, 0)) 
-                                                #         if elapsed >= change_time + 72000:
-                                                #             screen.blit(dark_images[10], (0, 0))
-                                                #             if elapsed >= change_time + 80000:
-                                                #                 screen.blit(dark_images[11], (0, 0))
+    if solo_time:
+        if theme == 'dark':
+            elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
+            # Отображаем соответствующую картинку в зависимости от прошедшего времени
+            if elapsed < change_time:
+                screen.blit(dark_images[0], (0, 0))
+            elif elapsed < change_time + 8000:
+                screen.blit(dark_images[1], (0, 0))
+            elif elapsed < change_time + 16000:
+                screen.blit(dark_images[2], (0, 0))
+            elif elapsed < change_time + 24000:
+                screen.blit(dark_images[3], (0, 0))
+            elif elapsed < change_time + 32000:
+                screen.blit(dark_images[4], (0, 0))
+            elif elapsed < change_time + 40000:
+                screen.blit(dark_images[5], (0, 0))
+            elif elapsed < change_time + 48000:
+                screen.blit(dark_images[6], (0, 0))
+            elif elapsed < change_time + 56000:
+                screen.blit(dark_images[7], (0, 0))
+            elif elapsed < change_time + 64000:
+                screen.blit(dark_images[8], (0, 0))
+            else:
+                screen.blit(dark_images[9], (0, 0))
+        
+        if theme == 'light':
+            elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
+            if elapsed < change_time:
+                screen.blit(light_images[0], (0, 0))
+            elif elapsed < change_time + 8000:
+                screen.blit(light_images[1], (0, 0))
+            elif elapsed < change_time + 16000:
+                screen.blit(light_images[2], (0, 0))
+            elif elapsed < change_time + 24000:
+                screen.blit(light_images[3], (0, 0))
+            elif elapsed < change_time + 32000:
+                screen.blit(light_images[4], (0, 0))
+            elif elapsed < change_time + 40000:
+                screen.blit(light_images[5], (0, 0))
+            elif elapsed < change_time + 48000:
+                screen.blit(light_images[6], (0, 0))
+            elif elapsed < change_time + 56000:
+                screen.blit(light_images[7], (0, 0))
+            elif elapsed < change_time + 64000:
+                screen.blit(light_images[8], (0, 0))
+            elif elapsed < change_time + 72000:
+                screen.blit(light_images[9], (0, 0))
+            else:
+                screen.blit(light_images[10] if len(light_images) > 10 else light_images[9], (0, 0))
+        
+        # Обновляем экран для solo_time
+        pygame.display.flip()
 
-            if theme == 'light':
-                elapsed = pygame.time.get_ticks() - solo_start_time
-                if elapsed >= change_time:
-                    screen.blit(light_images[1], (0, 0))
-                    if elapsed >= change_time + 8000:
-                        screen.blit(light_images[2], (0, 0))
-                        if elapsed >= change_time + 16000:
-                            screen.blit(light_images[3], (0, 0))
-                            if elapsed >= change_time + 24000:
-                                screen.blit(light_images[4], (0, 0))
-                                if elapsed >= change_time + 32000:
-                                    screen.blit(light_images[5], (0, 0))
-                                    if elapsed >= change_time + 40000:
-                                        screen.blit(light_images[6], (0, 0))
-                                        if elapsed >= change_time + 48000:
-                                            screen.blit(light_images[7], (0, 0))
-                                            if elapsed >= change_time + 56000:
-                                                screen.blit(light_images[8], (0, 0))
-                                                if elapsed >= change_time + 64000:
-                                                    screen.blit(light_images[9], (0, 0))
-                                                    if elapsed >= change_time + 72000:
-                                                        screen.blit(light_images[10], (0, 0))
-                                                        if elapsed >= change_time + 80000:
-                                                            screen.blit(light_images[11], (0, 0))
-        
-        
     if multi_play:
         if cid and cid in players:
             player_x = players[cid]['x']
@@ -658,8 +665,10 @@ while running:
                     screen.blit(input_surface, (rect_x, input_y))
                     input_text = font.render("> " + chat_input_text, True, (255, 255, 255))
                     screen.blit(input_text, (rect_x + 10, input_y + 5))
+            
+            pygame.display.flip()
 
-    if not chat_input_mode and not menu and not solo_time and not in_options:
+    if not chat_input_mode and not menu and not solo_time and not in_options and not in_pause and not in_quit:
         # Send inputs
         keys = pygame.key.get_pressed()
         inputs = {
@@ -676,15 +685,25 @@ while running:
             except Exception as e:
                 print(f"Send error: {e}")
 
-    # Отрисовка меню
+    # Отрисовка главного меню
     if menu:
-        # screen.fill((0, 0, 0))
+        screen.fill((250, 250, 250))
         screen.blit(menu_png, (0, 0))
-        # screen.blit(multi_play_button, multi_play_button_rect)
-        # screen.blit(options_button, options_button_rect)
-        # screen.blit(quit_button, quit_button_rect)
-        # screen.blit(solo_play_button, solo_play_button_rect)
-    pygame.display.flip()
+        screen.blit(multi_play_button, multi_play_button_rect)
+        screen.blit(options_button, options_button_rect)
+        screen.blit(quit_button, quit_button_rect)
+        screen.blit(solo_play_button, solo_play_button_rect)
+        pygame.display.flip()
+    
+    # Отрисовка меню выхода
+    if in_quit:
+        if theme == 'dark':
+            screen.blit(dark_quit_png, (0, 0))
+        elif theme == 'light':
+            screen.blit(light_quit_png, (0, 0))
+        screen.blit(quit_yes_button, quit_yes_button_rect)
+        screen.blit(quit_no_button, quit_no_button_rect)
+        pygame.display.flip()
 
 if ws:
     ws.close()

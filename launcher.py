@@ -506,8 +506,6 @@ class Launcher:
             ], env=env)
             
             self.update_status("Игра запущена!")
-            # Закрываем лаунчер через 2 секунды
-            self.root.after(2000, self.safe_exit)
             
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось запустить игру: {e}")

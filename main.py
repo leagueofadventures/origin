@@ -402,6 +402,7 @@ while running:
                     in_pause = False
                     solo_time = True
                     pause_close_time += pygame.time.get_ticks() - pause_start_time
+                
             
             if event.key == pygame.K_t and not chat_input_mode:  # T for chat
                 chat_input_mode = not chat_input_mode

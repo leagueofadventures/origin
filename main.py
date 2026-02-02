@@ -168,12 +168,12 @@ solo_play_button.fill((0, 0, 0, 0))
 solo_play_button_rect = solo_play_button.get_rect(topleft=(815, 605))
 
 multi_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-multi_play_button.fill((0, 0, 0, 250))
+multi_play_button.fill((0, 0, 0, 0))
 multi_play_button_rect = multi_play_button.get_rect(topleft=(820, 720))
 
 options_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-options_button.fill((0, 0, 0, 250))
-options_button_rect = options_button.get_rect(topleft=(0, 0))
+options_button.fill((0, 0, 0, 0))
+options_button_rect = options_button.get_rect(topleft=(820, 820))
 
 quit_button = pygame.Surface((270, 70), pygame.SRCALPHA)
 quit_button.fill((0, 0, 0, 0))
@@ -444,13 +444,13 @@ while running:
                     else:
                         screen.blit(light_images[0], (0, 0))
               
-                if multi_play_button_rect.collidepoint(event.pos):
+                elif multi_play_button_rect.collidepoint(event.pos):
                     multi_play = True
                     menu = False
                     solo_time = False
 
                 # Обработка нажатий на кнопку настроек
-                elif options_button_rect.collidepoint(x, y):
+                elif options_button_rect.collidepoint(event.pos):
                     menu = False
                     in_options = True
                     screen.fill(black)
@@ -467,9 +467,10 @@ while running:
                             screen.blit(toggles[i], toggles_rect[i])
                         else:
                             screen.blit(off_toggles[i], off_toggles_rect[i])
+    
 
                 # Обработка нажатий на кнопку выхода 
-                if quit_button_rect.collidepoint(event.pos):
+                elif quit_button_rect.collidepoint(event.pos):
                     in_quit = True
                     menu = False
                     if theme == 'dark':
@@ -705,6 +706,8 @@ while running:
         screen.blit(quit_yes_button, quit_yes_button_rect)
         screen.blit(quit_no_button, quit_no_button_rect)
         pygame.display.flip()
+
+    pygame.display.flip()
 
 if ws:
     ws.close()

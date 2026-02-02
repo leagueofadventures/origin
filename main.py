@@ -169,12 +169,10 @@ except FileNotFoundError:
 
 
 # Создание кнопок главного меню
-solo_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-solo_play_button.fill((0, 0, 0, 0))
-solo_play_button_rect = solo_play_button.get_rect(topleft=(820, 610))
+
 
 multi_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-multi_play_button.fill((0, 0, 0, 0))
+multi_play_button.fill((0, 0, 0, 250))
 multi_play_button_rect = multi_play_button.get_rect(topleft=(820, 720))
 
 options_button = pygame.Surface((300, 70), pygame.SRCALPHA)
@@ -196,6 +194,11 @@ quit_no_button_rect = quit_no_button.get_rect(topleft=(975, 590))
 continue_solo_button = pygame.Surface((470, 130), pygame.SRCALPHA)
 continue_solo_button.fill((0, 0, 0, 255))
 continue_solo_button_rect = continue_solo_button.get_rect(topleft=(738, 516))
+
+solo_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
+solo_play_button.fill((0, 0, 0, 250))
+solo_play_button_rect = solo_play_button.get_rect(topleft=(820, 610))
+
 
 # Загрузка спрайтов персонажа
 player_sprites = {}

@@ -172,8 +172,8 @@ multi_play_button.fill((0, 0, 0, 0))
 multi_play_button_rect = multi_play_button.get_rect(topleft=(820, 720))
 
 options_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-options_button.fill((0, 0, 0, 0))
-options_button_rect = options_button.get_rect(topleft=(820, 820))
+options_button.fill((0, 0, 0, 250))
+options_button_rect = options_button.get_rect(topleft=(0, 0))
 
 quit_button = pygame.Surface((270, 70), pygame.SRCALPHA)
 quit_button.fill((0, 0, 0, 0))
@@ -450,7 +450,7 @@ while running:
                     solo_time = False
 
                 # Обработка нажатий на кнопку настроек
-                if options_button_rect.collidepoint(event.pos):
+                elif options_button_rect.collidepoint(x, y):
                     menu = False
                     in_options = True
                     screen.fill(black)

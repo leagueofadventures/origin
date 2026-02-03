@@ -47,6 +47,7 @@ animation_frame = 0
 menu = True
 in_options = False  # Добавляем флаг для меню настроек
 solo_time = False
+solo_game_active = False  # Флаг, что соло игра активна
 solo_start_time = 0
 pause_close_time = 0  # Добавляем переменную для учета времени паузы
 change_time = 8000
@@ -57,7 +58,13 @@ theme = 'dark'
 red = (255, 0, 0)
 black = (0, 0, 0)
 
-
+# Переменные для соло режима
+solo_player_x = width // 2
+solo_player_y = height // 2
+solo_player_speed = 5
+solo_player_direction = 'down'
+solo_player_moving = False
+solo_player_attacking = False
 
 # Загрузка переключателей для настроек
 toggles = []
@@ -397,21 +404,23 @@ while running:
                     in_options = False
                     menu = True
                 
-                if multi_play:
+                # Если в соло игре, ставим на паузу
+                elif solo_game_active and not in_pause:
+                    solo_game_active = False
+                    in_pause = True
+                    pause_start_time = pygame.time.get_ticks()
+                
+                # Если в мультиплеере, возвращаемся в меню
+                elif multi_play:
                     multi_play = False
                     menu = True
                     screen.fill(black)
-                    
-                elif solo_time and not in_pause:
-                    solo_time = False
-                    in_pause = True
-                    pause_start_time = pygame.time.get_ticks()
-                elif in_pause:
-                    # Если уже в паузе, нажатие ESC выходит из паузы
-                    in_pause = False
-                    solo_time = True
-                    pause_close_time += pygame.time.get_ticks() - pause_start_time
                 
+                # Если в паузе, снимаем паузу
+                elif in_pause:
+                    in_pause = False
+                    solo_game_active = True
+                    pause_close_time += pygame.time.get_ticks() - pause_start_time
             
             if event.key == pygame.K_t and not chat_input_mode:  # T for chat
                 chat_input_mode = not chat_input_mode
@@ -444,7 +453,8 @@ while running:
                     menu = False
                     in_options = False
                     multi_play = False
-                    solo_time = True
+                    solo_time = True  # Начинаем катсцену
+                    solo_game_active = False  # Игра еще не активна
                     solo_start_time = pygame.time.get_ticks()
                     pause_close_time = 0
                     screen.fill(black)
@@ -457,6 +467,11 @@ while running:
                     multi_play = True
                     menu = False
                     solo_time = False
+                    solo_game_active = False
+                    # Инициализация позиции для мультиплеера
+                    player_x = width // 2
+                    player_y = height // 2
+                    screen.fill(black)
 
                 # Обработка нажатий на кнопку настроек
                 elif options_button_rect.collidepoint(event.pos):
@@ -492,13 +507,14 @@ while running:
             if in_pause:
                 if exit_to_menu_button_rect.collidepoint(event.pos):
                     in_pause = False
+                    solo_game_active = False
                     solo_time = False
                     menu = True
                     continue
 
                 if continue_solo_button_rect.collidepoint(event.pos):
                     in_pause = False
-                    solo_time = True
+                    solo_game_active = True
                     pause_close_time += pygame.time.get_ticks() - pause_start_time
                     print('Пауза снята, продолжаем играть')
                     continue
@@ -551,60 +567,90 @@ while running:
         pygame.display.flip()
         continue  # Пропускаем остальную отрисовку
 
-    # Смена картинок по кд
+    # Смена картинок по кд - катсцена
     if solo_time:
+        elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
+        
+        # Определяем, какая картинка должна отображаться
         if theme == 'dark':
-            elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
-            # Отображаем соответствующую картинку в зависимости от прошедшего времени
-            if elapsed < change_time:
-                screen.blit(dark_images[0], (0, 0))
-            elif elapsed < change_time + 8000:
-                screen.blit(dark_images[1], (0, 0))
-            elif elapsed < change_time + 16000:
-                screen.blit(dark_images[2], (0, 0))
-            elif elapsed < change_time + 24000:
-                screen.blit(dark_images[3], (0, 0))
-            elif elapsed < change_time + 32000:
-                screen.blit(dark_images[4], (0, 0))
-            elif elapsed < change_time + 40000:
-                screen.blit(dark_images[5], (0, 0))
-            elif elapsed < change_time + 48000:
-                screen.blit(dark_images[6], (0, 0))
-            elif elapsed < change_time + 56000:
-                screen.blit(dark_images[7], (0, 0))
-            elif elapsed < change_time + 64000:
-                screen.blit(dark_images[8], (0, 0))
-            else:
-                screen.blit(dark_images[9], (0, 0))
+            image_index = min(int(elapsed / 8000), len(dark_images) - 1)
+            screen.blit(dark_images[image_index], (0, 0))
+        else:
+            image_index = min(int(elapsed / 8000), len(light_images) - 1)
+            screen.blit(light_images[image_index], (0, 0))
         
-        if theme == 'light':
-            elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
-            if elapsed < change_time:
-                screen.blit(light_images[0], (0, 0))
-            elif elapsed < change_time + 8000:
-                screen.blit(light_images[1], (0, 0))
-            elif elapsed < change_time + 16000:
-                screen.blit(light_images[2], (0, 0))
-            elif elapsed < change_time + 24000:
-                screen.blit(light_images[3], (0, 0))
-            elif elapsed < change_time + 32000:
-                screen.blit(light_images[4], (0, 0))
-            elif elapsed < change_time + 40000:
-                screen.blit(light_images[5], (0, 0))
-            elif elapsed < change_time + 48000:
-                screen.blit(light_images[6], (0, 0))
-            elif elapsed < change_time + 56000:
-                screen.blit(light_images[7], (0, 0))
-            elif elapsed < change_time + 64000:
-                screen.blit(light_images[8], (0, 0))
-            elif elapsed < change_time + 72000:
-                screen.blit(light_images[9], (0, 0))
-            else:
-                screen.blit(light_images[10] if len(light_images) > 10 else light_images[9], (0, 0))
+        # Проверяем, закончилась ли катсцена
+        if elapsed > change_time * 2 + (len(light_images) * 8000 if theme == 'light' else len(dark_images) * 8000):
+            solo_time = False
+            solo_game_active = True  # Запускаем соло игру
+            # Сбрасываем камеру и позицию игрока
+            camera_x = 0
+            camera_y = 0
+            solo_player_x = width // 2
+            solo_player_y = height // 2
         
-        # Обновляем экран для solo_time
+        pygame.display.flip()
+        continue  # Пропускаем остальную логику, пока идет катсцена
+
+    # Соло игра активна
+    if solo_game_active and not in_pause:
+        # Обработка ввода для соло режима
+        keys = pygame.key.get_pressed()
+        
+        # Сбрасываем флаги движения
+        solo_player_moving = False
+        new_x = solo_player_x
+        new_y = solo_player_y
+        
+        # Обработка перемещения
+        if keys[pygame.K_w]:
+            new_y -= solo_player_speed
+            solo_player_direction = 'up'
+            solo_player_moving = True
+        if keys[pygame.K_s]:
+            new_y += solo_player_speed
+            solo_player_direction = 'down'
+            solo_player_moving = True
+        if keys[pygame.K_a]:
+            new_x -= solo_player_speed
+            solo_player_direction = 'left'
+            solo_player_moving = True
+        if keys[pygame.K_d]:
+            new_x += solo_player_speed
+            solo_player_direction = 'right'
+            solo_player_moving = True
+        
+        # Проверка атаки
+        solo_player_attacking = keys[pygame.K_SPACE]
+        
+        # Проверка коллизий
+        if not collides_with_objects(new_x, new_y, 32):
+            solo_player_x = new_x
+            solo_player_y = new_y
+        
+        # Обновление камеры
+        camera_x = max(0, min(solo_player_x - (width // 2), map_width - width))
+        camera_y = max(0, min(solo_player_y - (height // 2), map_height - height))
+        
+        # Отрисовка
+        screen.fill((0, 0, 0))
+        draw_map(screen, camera_x, camera_y)
+        
+        # Отрисовка персонажа
+        if player_sprites and solo_player_direction in player_sprites:
+            if solo_player_attacking and attack_sprites and solo_player_direction in attack_sprites:
+                sprite = attack_sprites[solo_player_direction][frame_index % len(attack_sprites[solo_player_direction])]
+            elif solo_player_moving:
+                sprite = player_sprites[solo_player_direction][frame_index % len(player_sprites[solo_player_direction])]
+            else:
+                sprite = player_sprites[solo_player_direction][0]
+            draw_entity(screen, solo_player_x - camera_x, solo_player_y - camera_y, (0, 255, 0), sprite=sprite)
+        else:
+            draw_square(screen, solo_player_x - camera_x, solo_player_y - camera_y, (0, 255, 0))
+        
         pygame.display.flip()
 
+    # Мультиплеер
     if multi_play:
         if cid and cid in players:
             player_x = players[cid]['x']
@@ -683,8 +729,8 @@ while running:
             
             pygame.display.flip()
 
-    if not chat_input_mode and not menu and not solo_time and not in_options and not in_pause and not in_quit:
-        # Send inputs
+    if not chat_input_mode and not menu and not solo_time and not solo_game_active and not in_options and not in_pause and not in_quit and multi_play:
+        # Send inputs for multiplayer
         keys = pygame.key.get_pressed()
         inputs = {
             'type': 'input',
@@ -719,8 +765,6 @@ while running:
         screen.blit(quit_yes_button, quit_yes_button_rect)
         screen.blit(quit_no_button, quit_no_button_rect)
         pygame.display.flip()
-
-    pygame.display.flip()
 
 if ws:
     ws.close()

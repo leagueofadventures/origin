@@ -764,7 +764,7 @@ while running:
             screen.blit(light_quit_png, (0, 0))
         screen.blit(quit_yes_button, quit_yes_button_rect)
         screen.blit(quit_no_button, quit_no_button_rect)
-        pygame.display.flip()
+    pygame.display.flip()
 
 if ws:
     ws.close()

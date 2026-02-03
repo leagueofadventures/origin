@@ -57,6 +57,8 @@ theme = 'dark'
 red = (255, 0, 0)
 black = (0, 0, 0)
 
+
+
 # Загрузка переключателей для настроек
 toggles = []
 toggles_rect = []
@@ -107,6 +109,12 @@ for i in range(1, 10):
         dark_images.append(dark_image)
     except FileNotFoundError:
         print('Ошибка. Файл dark не найден')
+
+menu_music_file = os.path.join(PROJECT_DIR, 'music', 'menu.mp3')
+try:
+    menu_music = pygame.mixer.music.load(menu_music_file)
+except FileNotFoundError:
+    print('Ошибка. Файл "menu.mp3 не найден')
 
 # Загрузка картинки главного меню
 menu_file = os.path.join(PROJECT_DIR, 'images', 'меню.png')
@@ -356,6 +364,7 @@ def collides_with_objects(x, y, size):
 
 multi_play = False
 chat = False
+music_counter = 0
 
 # Установка позиций для переключателей при инициализации
 toggles_rect[0].topleft = (1277, 441)
@@ -500,6 +509,10 @@ while running:
                 for i in range(3):
                     if toggles_rect[i].collidepoint(event.pos) or off_toggles_rect[i].collidepoint(event.pos):
                         toggle_states[i] = not toggle_states[i]
+                        if toggle_states[0]:
+                            pygame.mixer.music.play()
+                        elif not toggle_states[0]:
+                            pygame.mixer.music.stop()
                         print(f"Toggle {i} changed to: {toggle_states[i]}")
                         # Перерисовываем экран настроек
                         screen.fill(black)

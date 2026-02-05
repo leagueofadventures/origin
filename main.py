@@ -122,7 +122,7 @@ light_en_images = []
 for i in range(1, 11):
     try:
         light_en_name_image = str(i) + '.png'
-        light_en_image_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'light', light_en_name_image)
+        light_en_image_file = os.path.join(PROJECT_DIR, 'images', 'en', 'light', light_en_name_image)
         light_en_image = pygame.transform.scale(pygame.image.load(light_en_image_file), screen.get_size())
         light_en_images.append(light_en_image)
     except FileNotFoundError:
@@ -132,7 +132,7 @@ dark_en_images = []
 for i in range(1, 11):
     try:
         dark_en_name_image = str(i) + '.png'
-        dark_en_image_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'dark', dark_en_name_image)
+        dark_en_image_file = os.path.join(PROJECT_DIR, 'images', 'en', 'dark', dark_en_name_image)
         dark_en_image = pygame.transform.scale(pygame.image.load(dark_en_image_file), screen.get_size())
         dark_en_images.append(dark_en_image)
     except FileNotFoundError:
@@ -684,14 +684,16 @@ while running:
                 image_index = min(int(elapsed / 8000), len(dark_ru_images) - 1)
                 screen.blit(dark_ru_images[image_index], (0, 0))
             else:
-                pass
-                # image_index = min(int(elapsed / 8000), len(dark_en_images) - 1)
-                # screen.blit(dark_en_images[image_index], (0, 0))
+                image_index = min(int(elapsed / 8000), len(dark_en_images) - 1)
+                screen.blit(dark_en_images[image_index], (0, 0))
         else:
             if language == 'ru':
             #Тут тоже ,
                 image_index = min(int(elapsed / 8000), len(light_ru_images) - 1)
                 screen.blit(light_ru_images[image_index], (0, 0))
+            else:
+                image_index = min(int(elapsed / 8000), len(light_en_images) - 1)
+                screen.blit(light_en_images[image_index], (0, 0))
         
         # Проверяем, закончилась ли катсцена
         if elapsed > change_time * 2 + (len(light_ru_images) * 8000 if theme == 'light' else len(dark_ru_images) * 8000) or elapsed > change_time * 2 + (len(light_en_images) * 8000 if theme == 'light' else len(dark_en_images) * 8000):

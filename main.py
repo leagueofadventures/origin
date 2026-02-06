@@ -47,17 +47,25 @@ animation_frame = 0
 menu = True
 in_options = False  # Добавляем флаг для меню настроек
 solo_time = False
+solo_game_active = False  # Флаг, что соло игра активна
 solo_start_time = 0
 pause_close_time = 0  # Добавляем переменную для учета времени паузы
 change_time = 8000
 
 theme = 'dark'
+language = 'ru'
 
 # Цвета
 red = (255, 0, 0)
 black = (0, 0, 0)
 
-
+# Переменные для соло режима
+solo_player_x = width // 2
+solo_player_y = height // 2
+solo_player_speed = 5
+solo_player_direction = 'down'
+solo_player_moving = False
+solo_player_attacking = False
 
 # Загрузка переключателей для настроек
 toggles = []
@@ -90,25 +98,46 @@ for i in range(3):
 toggle_states = [False, False, False]
 
 # Загрузка изображений для текстовой части игры
-light_images = []
+light_ru_images = []
 for i in range(1, 11):
     try:
-        light_name_image = str(i) + '.png'
-        light_image_file = os.path.join(PROJECT_DIR, 'images', 'light', light_name_image)
-        light_image = pygame.transform.scale(pygame.image.load(light_image_file), screen.get_size())
-        light_images.append(light_image)
+        light_ru_name_image = str(i) + '.png'
+        light_ru_image_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'light', light_ru_name_image)
+        light_ru_image = pygame.transform.scale(pygame.image.load(light_ru_image_file), screen.get_size())
+        light_ru_images.append(light_ru_image)
     except FileNotFoundError:
         print('Ошибка. Файл light не найден')
 
-dark_images = []
-for i in range(1, 10):
+dark_ru_images = []
+for i in range(1, 11):
     try:
-        dark_name_image = str(i) + '.png'
-        dark_image_file = os.path.join(PROJECT_DIR, 'images', 'dark', dark_name_image)
-        dark_image = pygame.transform.scale(pygame.image.load(dark_image_file), screen.get_size())
-        dark_images.append(dark_image)
+        dark_ru_name_image = str(i) + '.png'
+        dark_ru_image_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'dark', dark_ru_name_image)
+        dark_ru_image = pygame.transform.scale(pygame.image.load(dark_ru_image_file), screen.get_size())
+        dark_ru_images.append(dark_ru_image)
     except FileNotFoundError:
         print('Ошибка. Файл dark не найден')
+
+light_en_images = []
+for i in range(1, 11):
+    try:
+        light_en_name_image = str(i) + '.png'
+        light_en_image_file = os.path.join(PROJECT_DIR, 'images', 'en', 'light', light_en_name_image)
+        light_en_image = pygame.transform.scale(pygame.image.load(light_en_image_file), screen.get_size())
+        light_en_images.append(light_en_image)
+    except FileNotFoundError:
+        print('Ошибка. Файл light не найден')
+
+dark_en_images = []
+for i in range(1, 11):
+    try:
+        dark_en_name_image = str(i) + '.png'
+        dark_en_image_file = os.path.join(PROJECT_DIR, 'images', 'en', 'dark', dark_en_name_image)
+        dark_en_image = pygame.transform.scale(pygame.image.load(dark_en_image_file), screen.get_size())
+        dark_en_images.append(dark_en_image)
+    except FileNotFoundError:
+        print('Ошибка. Файл dark не найден')
+
 
 menu_music_file = os.path.join(PROJECT_DIR, 'music', 'menu.mp3')
 try:
@@ -117,54 +146,105 @@ except FileNotFoundError:
     print('Ошибка. Файл "menu.mp3 не найден')
 
 # Загрузка картинки главного меню
-menu_file = os.path.join(PROJECT_DIR, 'images', 'меню.png')
+menu_ru_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'menu.jpg')
 try:
-    menu_png = pygame.transform.scale(pygame.image.load(menu_file), screen.get_size())
+    menu_ru_png = pygame.transform.scale(pygame.image.load(menu_ru_file), screen.get_size())
 except FileNotFoundError:
-    print('Ошибка. Файл "меню.png" не найден')
+    print('Ошибка. Файл "меню.rupng" не найден')
+    pygame.quit()
+    sys.exit()
+
+menu_en_file = os.path.join(PROJECT_DIR, 'images', 'en', 'меню.png')
+try:
+    menu_en_png = pygame.transform.scale(pygame.image.load(menu_en_file), screen.get_size())
+except FileNotFoundError:
+    print('Ошибка. Файл "меню.enpng" не найден')
     pygame.quit()
     sys.exit()
 
 # Загрузка меню паузы 
-pause_file = os.path.join(PROJECT_DIR, 'images', 'pause.jpg')
+pause_en_file = os.path.join(PROJECT_DIR, 'images', 'en', 'pause.jpg')
 try:
-    pause_png = pygame.transform.scale(pygame.image.load(pause_file), screen.get_size())
+    pause_en_png = pygame.transform.scale(pygame.image.load(pause_en_file), screen.get_size())
 except FileNotFoundError:
     print('Ошибка. Файл "pause.png" не найден')
     pygame.quit()
     sys.exit()
 
-# Загрузка картинки меню выхода
-dark_quit_file = os.path.join(PROJECT_DIR, 'images', 'dark', 'quit_menu.jpg')
+pause_ru_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'pause.jpg')
 try:
-    dark_quit_png = pygame.transform.scale(pygame.image.load(dark_quit_file), screen.get_size())
+    pause_ru_png = pygame.transform.scale(pygame.image.load(pause_ru_file), screen.get_size())
+except FileNotFoundError:
+    print('Ошибка. Файл "pause.png" не найден')
+    pygame.quit()
+    sys.exit()
+
+
+# Загрузка картинки меню выхода
+dark_ru_quit_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'dark', 'quit_menu.jpg')
+try:
+    dark_ru_quit_png = pygame.transform.scale(pygame.image.load(dark_ru_quit_file), screen.get_size())
 except FileNotFoundError:
     print('Ошибка. Файл "quit_menu.jpg" не найден.')
     pygame.quit()
     sys.exit()
 
 # Загрузка картинки меню выхода
-light_quit_file = os.path.join(PROJECT_DIR, 'images', 'light', 'quit_menu.jpg')
+light_en_quit_file = os.path.join(PROJECT_DIR, 'images', 'en', 'light', 'quit_menu.jpg')
 try:
-    light_quit_png = pygame.transform.scale(pygame.image.load(light_quit_file), screen.get_size())
+    light_en_quit_png = pygame.transform.scale(pygame.image.load(light_en_quit_file), screen.get_size())
 except FileNotFoundError:
     print('Ошибка. Файл "light_quit_menu.jpg" не найден.')
     pygame.quit()
     sys.exit()
 
-# Загрузка заднего фона настроек
-dark_settings_file = os.path.join(PROJECT_DIR, 'images', 'dark', 'settings_background.png')
+dark_en_quit_file = os.path.join(PROJECT_DIR, 'images', 'en', 'dark', 'quit_menu.jpg')
 try:
-    dark_setting_png = pygame.transform.scale(pygame.image.load(dark_settings_file), screen.get_size())
+    dark_en_quit_png = pygame.transform.scale(pygame.image.load(dark_en_quit_file), screen.get_size())
+except FileNotFoundError:
+    print('Ошибка. Файл "quit_menu.jpg" не найден.')
+    pygame.quit()
+    sys.exit()
+
+# Загрузка картинки меню выхода
+light_ru_quit_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'light', 'quit_menu.jpg')
+try:
+    light_ru_quit_png = pygame.transform.scale(pygame.image.load(light_ru_quit_file), screen.get_size())
+except FileNotFoundError:
+    print('Ошибка. Файл "light_quit_menu.jpg" не найден.')
+    pygame.quit()
+    sys.exit()
+
+
+# Загрузка заднего фона настроек
+dark_ru_settings_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'dark', 'settings_background.png')
+try:
+    dark_ru_setting_png = pygame.transform.scale(pygame.image.load(dark_ru_settings_file), screen.get_size())
+except FileNotFoundError:
+    print('Ошибка. Файл "settings_background.png" не найден.')
+    pygame.quit()
+    sys.exit()
+
+dark_en_settings_file = os.path.join(PROJECT_DIR, 'images', 'en', 'dark', 'settings_background.png')
+try:
+    dark_en_setting_png = pygame.transform.scale(pygame.image.load(dark_en_settings_file), screen.get_size())
 except FileNotFoundError:
     print('Ошибка. Файл "settings_background.png" не найден.')
     pygame.quit()
     sys.exit()
 
 # Загрузка заднего фона настроек
-light_settings_file = os.path.join(PROJECT_DIR, 'images', 'light', 'settings_background.png')
+light_en_settings_file = os.path.join(PROJECT_DIR, 'images', 'en', 'light', 'settings_background.png')
 try:
-    light_setting_png = pygame.transform.scale(pygame.image.load(light_settings_file), screen.get_size())
+    light_en_setting_png = pygame.transform.scale(pygame.image.load(light_en_settings_file), screen.get_size())
+except FileNotFoundError:
+    print('Ошибка. Файл "settings_background.png" не найден.')
+    pygame.quit()
+    sys.exit()
+
+light_ru_settings_file = os.path.join(PROJECT_DIR, 'images', 'ru', 'light', 'settings_background.png')
+try:
+    light_ru_setting_png = pygame.transform.scale(pygame.image.load(light_ru_settings_file), screen.get_size())
 except FileNotFoundError:
     print('Ошибка. Файл "settings_background.png" не найден.')
     pygame.quit()
@@ -176,7 +256,7 @@ solo_play_button.fill((0, 0, 0, 0))
 solo_play_button_rect = solo_play_button.get_rect(topleft=(815, 605))
 
 multi_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-multi_play_button.fill((0, 0, 0, 0))
+multi_play_button.fill((0, 0, 0,  0))
 multi_play_button_rect = multi_play_button.get_rect(topleft=(820, 720))
 
 options_button = pygame.Surface((300, 70), pygame.SRCALPHA)
@@ -397,21 +477,23 @@ while running:
                     in_options = False
                     menu = True
                 
-                if multi_play:
+                # Если в соло игре, ставим на паузу
+                elif solo_game_active and not in_pause:
+                    solo_game_active = False
+                    in_pause = True
+                    pause_start_time = pygame.time.get_ticks()
+                
+                # Если в мультиплеере, возвращаемся в меню
+                elif multi_play:
                     multi_play = False
                     menu = True
                     screen.fill(black)
-                    
-                elif solo_time and not in_pause:
-                    solo_time = False
-                    in_pause = True
-                    pause_start_time = pygame.time.get_ticks()
-                elif in_pause:
-                    # Если уже в паузе, нажатие ESC выходит из паузы
-                    in_pause = False
-                    solo_time = True
-                    pause_close_time += pygame.time.get_ticks() - pause_start_time
                 
+                # Если в паузе, снимаем паузу
+                elif in_pause:
+                    in_pause = False
+                    solo_game_active = True
+                    pause_close_time += pygame.time.get_ticks() - pause_start_time
             
             if event.key == pygame.K_t and not chat_input_mode:  # T for chat
                 chat_input_mode = not chat_input_mode
@@ -444,19 +526,31 @@ while running:
                     menu = False
                     in_options = False
                     multi_play = False
-                    solo_time = True
+                    solo_time = True  # Начинаем катсцену
+                    solo_game_active = False  # Игра еще не активна
                     solo_start_time = pygame.time.get_ticks()
                     pause_close_time = 0
                     screen.fill(black)
                     if theme == 'dark':
-                        screen.blit(dark_images[0], (0, 0))
+                        if language == 'ru':
+                            screen.blit(dark_ru_images[0], (0, 0))
+                        else:
+                            screen.blit(dark_en_images[0], (0, 0))
                     else:
-                        screen.blit(light_images[0], (0, 0))
+                        if language == 'ru':
+                            screen.blit(light_ru_images[0], (0, 0))
+                        else:
+                            screen.blit(light_en_images[0], (0, 0))
               
                 elif multi_play_button_rect.collidepoint(event.pos):
                     multi_play = True
                     menu = False
                     solo_time = False
+                    solo_game_active = False
+                    # Инициализация позиции для мультиплеера
+                    player_x = width // 2
+                    player_y = height // 2
+                    screen.fill(black)
 
                 # Обработка нажатий на кнопку настроек
                 elif options_button_rect.collidepoint(event.pos):
@@ -464,11 +558,17 @@ while running:
                     in_options = True
                     screen.fill(black)
                     if theme == 'light':
-                        screen.blit(light_setting_png, (0, 0))
+                        if language == 'ru':
+                            screen.blit(light_ru_setting_png, (0, 0))
+                        else:
+                            screen.blit(light_en_setting_png, (0, 0))
                         print(f'theme = {theme}')
                     elif theme == 'dark':
                         print(f'theme = {theme}')
-                        screen.blit(dark_setting_png, (0, 0))
+                        if language == 'ru':
+                            screen.blit(dark_ru_setting_png, (0, 0))
+                        else:
+                            screen.blit(dark_en_setting_png, (0, 0))
                     # Рисуем переключатели в соответствии с их состояниями
                     for i in range(3):
                         if toggle_states[i]:
@@ -483,22 +583,29 @@ while running:
                     in_quit = True
                     menu = False
                     if theme == 'dark':
-                        screen.blit(dark_quit_png, (0, 0))
+                        if language == 'ru':
+                            screen.blit(dark_ru_quit_png, (0, 0))
+                        else:
+                            screen.blit(dark_en_quit_png, (0, 0))
                     elif theme == 'light':
-                        screen.blit(light_quit_png, (0, 0))
+                        if language == 'ru':
+                            screen.blit(light_ru_quit_png, (0, 0))
+                        else:
+                            screen.blit(light_en_quit_png, (0, 0))
                     screen.blit(quit_yes_button, quit_yes_button_rect)
                     screen.blit(quit_no_button, quit_no_button_rect)
 
             if in_pause:
                 if exit_to_menu_button_rect.collidepoint(event.pos):
                     in_pause = False
+                    solo_game_active = False
                     solo_time = False
                     menu = True
                     continue
 
                 if continue_solo_button_rect.collidepoint(event.pos):
                     in_pause = False
-                    solo_time = True
+                    solo_game_active = True
                     pause_close_time += pygame.time.get_ticks() - pause_start_time
                     print('Пауза снята, продолжаем играть')
                     continue
@@ -511,8 +618,14 @@ while running:
                         toggle_states[i] = not toggle_states[i]
                         if toggle_states[0]:
                             pygame.mixer.music.play()
-                        elif not toggle_states[0]:
+                        else:
                             pygame.mixer.music.stop()
+                        if toggle_states[1]:
+                            language = 'en'
+                        else:
+                            language = 'ru'
+                       
+                      
                         print(f"Toggle {i} changed to: {toggle_states[i]}")
                         # Перерисовываем экран настроек
                         screen.fill(black)
@@ -520,10 +633,16 @@ while running:
                         current_theme = 'light' if toggle_states[2] else 'dark'
                         if current_theme == 'light':
                             theme = 'light'
-                            screen.blit(light_setting_png, (0, 0))
+                            if language == 'ru':
+                                screen.blit(light_ru_setting_png, (0, 0))
+                            else:
+                                screen.blit(light_en_setting_png, (0, 0))
                         else:
                             theme = 'dark'
-                            screen.blit(dark_setting_png, (0, 0))
+                            if language == 'ru':
+                                screen.blit(dark_ru_setting_png, (0, 0))
+                            else:
+                                screen.blit(dark_en_setting_png, (0, 0))
                         
                         # Рисуем все переключатели
                         for j in range(3):   
@@ -545,66 +664,109 @@ while running:
 
     # Отрисовка меню паузы
     if in_pause:
-        screen.blit(pause_png, (0, 0))
+        if language == 'en':
+            screen.blit(pause_en_png, (0, 0))
+        else:
+            screen.blit(pause_ru_png, (0, 0))
         screen.blit(exit_to_menu_button, exit_to_menu_button_rect)
         screen.blit(continue_solo_button, continue_solo_button_rect)
         pygame.display.flip()
         continue  # Пропускаем остальную отрисовку
 
-    # Смена картинок по кд
+    # Смена картинок по кд - катсцена
     if solo_time:
+        elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
+        
+        # Определяем, какая картинка должна отображаться
         if theme == 'dark':
-            elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
-            # Отображаем соответствующую картинку в зависимости от прошедшего времени
-            if elapsed < change_time:
-                screen.blit(dark_images[0], (0, 0))
-            elif elapsed < change_time + 8000:
-                screen.blit(dark_images[1], (0, 0))
-            elif elapsed < change_time + 16000:
-                screen.blit(dark_images[2], (0, 0))
-            elif elapsed < change_time + 24000:
-                screen.blit(dark_images[3], (0, 0))
-            elif elapsed < change_time + 32000:
-                screen.blit(dark_images[4], (0, 0))
-            elif elapsed < change_time + 40000:
-                screen.blit(dark_images[5], (0, 0))
-            elif elapsed < change_time + 48000:
-                screen.blit(dark_images[6], (0, 0))
-            elif elapsed < change_time + 56000:
-                screen.blit(dark_images[7], (0, 0))
-            elif elapsed < change_time + 64000:
-                screen.blit(dark_images[8], (0, 0))
+            if language == 'ru':
+            #Тут добавить проверку языка
+                image_index = min(int(elapsed / 8000), len(dark_ru_images) - 1)
+                screen.blit(dark_ru_images[image_index], (0, 0))
             else:
-                screen.blit(dark_images[9], (0, 0))
-        
-        if theme == 'light':
-            elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
-            if elapsed < change_time:
-                screen.blit(light_images[0], (0, 0))
-            elif elapsed < change_time + 8000:
-                screen.blit(light_images[1], (0, 0))
-            elif elapsed < change_time + 16000:
-                screen.blit(light_images[2], (0, 0))
-            elif elapsed < change_time + 24000:
-                screen.blit(light_images[3], (0, 0))
-            elif elapsed < change_time + 32000:
-                screen.blit(light_images[4], (0, 0))
-            elif elapsed < change_time + 40000:
-                screen.blit(light_images[5], (0, 0))
-            elif elapsed < change_time + 48000:
-                screen.blit(light_images[6], (0, 0))
-            elif elapsed < change_time + 56000:
-                screen.blit(light_images[7], (0, 0))
-            elif elapsed < change_time + 64000:
-                screen.blit(light_images[8], (0, 0))
-            elif elapsed < change_time + 72000:
-                screen.blit(light_images[9], (0, 0))
+                image_index = min(int(elapsed / 8000), len(dark_en_images) - 1)
+                screen.blit(dark_en_images[image_index], (0, 0))
+        else:
+            if language == 'ru':
+            #Тут тоже ,
+                image_index = min(int(elapsed / 8000), len(light_ru_images) - 1)
+                screen.blit(light_ru_images[image_index], (0, 0))
             else:
-                screen.blit(light_images[10] if len(light_images) > 10 else light_images[9], (0, 0))
+                image_index = min(int(elapsed / 8000), len(light_en_images) - 1)
+                screen.blit(light_en_images[image_index], (0, 0))
         
-        # Обновляем экран для solo_time
+        # Проверяем, закончилась ли катсцена
+        if elapsed > change_time * 2 + (len(light_ru_images) * 8000 if theme == 'light' else len(dark_ru_images) * 8000) or elapsed > change_time * 2 + (len(light_en_images) * 8000 if theme == 'light' else len(dark_en_images) * 8000):
+            solo_time = False
+            solo_game_active = True  # Запускаем соло игру
+            # Сбрасываем камеру и позицию игрока
+            camera_x = 0
+            camera_y = 0
+            solo_player_x = width // 2
+            solo_player_y = height // 2
+        
+        pygame.display.flip()
+        continue  # Пропускаем остальную логику, пока идет катсцена
+
+    # Соло игра активна
+    if solo_game_active and not in_pause:
+        # Обработка ввода для соло режима
+        keys = pygame.key.get_pressed()
+        
+        # Сбрасываем флаги движения
+        solo_player_moving = False
+        new_x = solo_player_x
+        new_y = solo_player_y
+        
+        # Обработка перемещения
+        if keys[pygame.K_w]:
+            new_y -= solo_player_speed
+            solo_player_direction = 'up'
+            solo_player_moving = True
+        if keys[pygame.K_s]:
+            new_y += solo_player_speed
+            solo_player_direction = 'down'
+            solo_player_moving = True
+        if keys[pygame.K_a]:
+            new_x -= solo_player_speed
+            solo_player_direction = 'left'
+            solo_player_moving = True
+        if keys[pygame.K_d]:
+            new_x += solo_player_speed
+            solo_player_direction = 'right'
+            solo_player_moving = True
+        
+        # Проверка атаки
+        solo_player_attacking = keys[pygame.K_SPACE]
+        
+        # Проверка коллизий
+        if not collides_with_objects(new_x, new_y, 32):
+            solo_player_x = new_x
+            solo_player_y = new_y
+        
+        # Обновление камеры
+        camera_x = max(0, min(solo_player_x - (width // 2), map_width - width))
+        camera_y = max(0, min(solo_player_y - (height // 2), map_height - height))
+        
+        # Отрисовка
+        screen.fill((0, 0, 0))
+        draw_map(screen, camera_x, camera_y)
+        
+        # Отрисовка персонажа
+        if player_sprites and solo_player_direction in player_sprites:
+            if solo_player_attacking and attack_sprites and solo_player_direction in attack_sprites:
+                sprite = attack_sprites[solo_player_direction][frame_index % len(attack_sprites[solo_player_direction])]
+            elif solo_player_moving:
+                sprite = player_sprites[solo_player_direction][frame_index % len(player_sprites[solo_player_direction])]
+            else:
+                sprite = player_sprites[solo_player_direction][0]
+            draw_entity(screen, solo_player_x - camera_x, solo_player_y - camera_y, (0, 255, 0), sprite=sprite)
+        else:
+            draw_square(screen, solo_player_x - camera_x, solo_player_y - camera_y, (0, 255, 0))
+        
         pygame.display.flip()
 
+    # Мультиплеер
     if multi_play:
         if cid and cid in players:
             player_x = players[cid]['x']
@@ -683,8 +845,8 @@ while running:
             
             pygame.display.flip()
 
-    if not chat_input_mode and not menu and not solo_time and not in_options and not in_pause and not in_quit:
-        # Send inputs
+    if not chat_input_mode and not menu and not solo_time and not solo_game_active and not in_options and not in_pause and not in_quit and multi_play:
+        # Send inputs for multiplayer
         keys = pygame.key.get_pressed()
         inputs = {
             'type': 'input',
@@ -703,7 +865,10 @@ while running:
     # Отрисовка главного меню
     if menu:
         screen.fill((250, 250, 250))
-        screen.blit(menu_png, (0, 0))
+        if language == 'ru':
+            screen.blit(menu_ru_png, (0, 0))
+        else:
+            screen.blit(menu_en_png, (0, 0))
         screen.blit(multi_play_button, multi_play_button_rect)
         screen.blit(options_button, options_button_rect)
         screen.blit(quit_button, quit_button_rect)
@@ -713,13 +878,17 @@ while running:
     # Отрисовка меню выхода
     if in_quit:
         if theme == 'dark':
-            screen.blit(dark_quit_png, (0, 0))
+            if language == 'ru':
+                screen.blit(dark_ru_quit_png, (0, 0))
+            else:
+                screen.blit(dark_en_quit_png, (0, 0))
         elif theme == 'light':
-            screen.blit(light_quit_png, (0, 0))
+            if language == 'ru':
+                screen.blit(light_ru_quit_png, (0, 0))
+            else:
+                screen.blit(light_en_quit_png, (0, 0))
         screen.blit(quit_yes_button, quit_yes_button_rect)
         screen.blit(quit_no_button, quit_no_button_rect)
-        pygame.display.flip()
-
     pygame.display.flip()
 
 if ws:

@@ -592,7 +592,7 @@ func gameLoop() {
 		for projID, proj := range projectiles {
 			for mobID, mob := range mobs {
 				if math.Abs(proj.X-mob.X) < 32 && math.Abs(proj.Y-mob.Y) < 32 {
-					mob.Health -= 10
+					mob.Health -= 100
 					delete(projectiles, projID)
 					if mob.Health <= 0 {
 						delete(mobs, mobID)

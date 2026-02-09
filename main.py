@@ -8,7 +8,7 @@ import os
 import argparse
 import threading
 import time
-
+import math
 # Определяем текущую директорию проекта
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -62,10 +62,18 @@ black = (0, 0, 0)
 # Переменные для соло режима
 solo_player_x = width // 2
 solo_player_y = height // 2
-solo_player_speed = 5
+solo_player_speed = 15
 solo_player_direction = 'down'
 solo_player_moving = False
 solo_player_attacking = False
+
+
+solo_mobs = []
+# mob_x = width // 4
+# mob_y = height // 4
+# mob_speed = 2
+mob_direction = 'down'
+mob_moving = False
 
 # Загрузка переключателей для настроек
 toggles = []
@@ -674,42 +682,52 @@ while running:
         continue  # Пропускаем остальную отрисовку
 
     # Смена картинок по кд - катсцена
-    if solo_time:
-        elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
+    # if solo_time:
+    #     elapsed = pygame.time.get_ticks() - solo_start_time - pause_close_time
         
-        # Определяем, какая картинка должна отображаться
-        if theme == 'dark':
-            if language == 'ru':
-            #Тут добавить проверку языка
-                image_index = min(int(elapsed / 8000), len(dark_ru_images) - 1)
-                screen.blit(dark_ru_images[image_index], (0, 0))
-            else:
-                image_index = min(int(elapsed / 8000), len(dark_en_images) - 1)
-                screen.blit(dark_en_images[image_index], (0, 0))
-        else:
-            if language == 'ru':
-            #Тут тоже ,
-                image_index = min(int(elapsed / 8000), len(light_ru_images) - 1)
-                screen.blit(light_ru_images[image_index], (0, 0))
-            else:
-                image_index = min(int(elapsed / 8000), len(light_en_images) - 1)
-                screen.blit(light_en_images[image_index], (0, 0))
+    #     # Определяем, какая картинка должна отображаться
+    #     if theme == 'dark':
+    #         if language == 'ru':
+    #         #Тут добавить проверку языка
+    #             image_index = min(int(elapsed / 8000), len(dark_ru_images) - 1)
+    #             screen.blit(dark_ru_images[image_index], (0, 0))
+    #         else:
+    #             image_index = min(int(elapsed / 8000), len(dark_en_images) - 1)
+    #             screen.blit(dark_en_images[image_index], (0, 0))
+    #     else:
+    #         if language == 'ru':
+    #         #Тут тоже ,
+    #             image_index = min(int(elapsed / 8000), len(light_ru_images) - 1)
+    #             screen.blit(light_ru_images[image_index], (0, 0))
+    #         else:
+    #             image_index = min(int(elapsed / 8000), len(light_en_images) - 1)
+    #             screen.blit(light_en_images[image_index], (0, 0))
         
-        # Проверяем, закончилась ли катсцена
-        if elapsed > change_time * 2 + (len(light_ru_images) * 8000 if theme == 'light' else len(dark_ru_images) * 8000) or elapsed > change_time * 2 + (len(light_en_images) * 8000 if theme == 'light' else len(dark_en_images) * 8000):
-            solo_time = False
-            solo_game_active = True  # Запускаем соло игру
-            # Сбрасываем камеру и позицию игрока
-            camera_x = 0
-            camera_y = 0
-            solo_player_x = width // 2
-            solo_player_y = height // 2
+    #     # Проверяем, закончилась ли катсцена
+    #     if elapsed > change_time * 2 + (len(light_ru_images) * 8000 if theme == 'light' else len(dark_ru_images) * 8000) or elapsed > change_time * 2 + (len(light_en_images) * 8000 if theme == 'light' else len(dark_en_images) * 8000):
+    #         solo_time = False
+    #         solo_game_active = True  # Запускаем соло игру
+    #         # Сбрасываем камеру и позицию игрока
+    #         camera_x = 0
+    #         camera_y = 0
+    #         solo_player_x = width // 2
+    #         solo_player_y = height // 2
         
-        pygame.display.flip()
-        continue  # Пропускаем остальную логику, пока идет катсцена
-
+    #     pygame.display.flip()
+    #     continue  # Пропускаем остальную логику, пока идет катсцена
+    solo_time = False
+    solo_game_active = True
     # Соло игра активна
     if solo_game_active and not in_pause:
+
+        if not solo_mobs:
+            for i in range(5):
+                solo_mobs.append({
+                    'x': width // 4,
+                    'y': height // 4,
+                    'speed': 3
+                })
+        
         # Обработка ввода для соло режима
         keys = pygame.key.get_pressed()
         
@@ -763,7 +781,28 @@ while running:
             draw_entity(screen, solo_player_x - camera_x, solo_player_y - camera_y, (0, 255, 0), sprite=sprite)
         else:
             draw_square(screen, solo_player_x - camera_x, solo_player_y - camera_y, (0, 255, 0))
-        
+
+        # for mob in mobs:
+        #     dx = solo_player_x - mob_x
+        #     dy = solo_player_y - mob_y
+        #     mob_x += dx * mob_speed
+        #     mob_y += dy * mob_speed
+            
+        #Отрисовка мобов
+
+        for mob in solo_mobs:
+            dx = solo_player_x - mob['x']
+            dy = solo_player_y - mob['y']
+            distance = max(0.1, math.sqrt(dx*dx + dy*dy))
+            dx /= distance
+            dy /= distance
+            mob['x'] += dx * mob['speed']
+            mob['y'] += dy * mob['speed']
+
+        for mob in solo_mobs:
+            draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))
+
+
         pygame.display.flip()
 
     # Мультиплеер

@@ -23,6 +23,9 @@ SERVER_URL = args.server
 
 # Инициализация Pygame
 pygame.init()
+
+
+
 pygame.mixer.init()
 pygame.display.init()
 
@@ -276,11 +279,11 @@ quit_no_button.fill((0, 0, 0, 0))
 quit_no_button_rect = quit_no_button.get_rect(topleft=(975, 590))
 
 continue_solo_button = pygame.Surface((470, 130), pygame.SRCALPHA)
-continue_solo_button.fill((0, 0, 0, 250))
+continue_solo_button.fill((0, 0, 0, 0))
 continue_solo_button_rect = continue_solo_button.get_rect(topleft=(738, 516))
 
 exit_to_menu_button = pygame.Surface((470, 130), pygame.SRCALPHA)
-exit_to_menu_button.fill((0, 0, 0, 250))
+exit_to_menu_button.fill((0, 0, 0, 0))
 exit_to_menu_button_rect = exit_to_menu_button.get_rect(topleft=(739, 687))
 
 # Загрузка спрайтов персонажа

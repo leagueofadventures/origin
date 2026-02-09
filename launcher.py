@@ -22,8 +22,8 @@ class Launcher:
     def __init__(self, root):
         self.root = root
         self.root.title("League of adventures - Launcher")
-        self.root.geometry("400x400")
-        self.root.resizable(False, False)
+        self.root.geometry("450x400")
+        self.root.resizable(True, True)
         
         # Центрирование окна
         self.center_window()

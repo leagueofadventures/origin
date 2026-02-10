@@ -23,6 +23,9 @@ SERVER_URL = args.server
 
 # Инициализация Pygame
 pygame.init()
+
+
+
 pygame.mixer.init()
 pygame.display.init()
 

@@ -375,7 +375,7 @@ in_pause = False
 image_counter = 0
 in_quit = False
 
-# WebSocket connection
+
 def on_message(ws, message):
     global players, mobs, projectiles, client_chat_history, player_x, player_y, cid
     if not message.strip():
@@ -417,12 +417,12 @@ def connect_websocket():
     ws.on_open = on_open
     ws.run_forever()
 
-# Start WebSocket in a thread
+# 
 ws_thread = threading.Thread(target=connect_websocket)
 ws_thread.daemon = True
 ws_thread.start()
 
-# Wait for connection
+# 
 time.sleep(1)
 
 def draw_map(surface, camera_x, camera_y):
@@ -476,7 +476,7 @@ while running:
     clock = pygame.time.Clock()
     clock.tick(60)
 
-    # Update animation frame (slower for smoother animation)
+    # обновление анимаций
     animation_frame += 0.2
     frame_index = int(animation_frame)
 
@@ -836,7 +836,7 @@ while running:
             draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))
 
     for proj in solo_projectiles:
-        draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  # Red circle for projectiles
+        draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  
 
     for proj in solo_projectiles:
         if mob['x'] == proj['x'] and mob['y'] == proj['y']:
@@ -850,10 +850,10 @@ while running:
             camera_x = max(0, min(player_x - (width // 2), map_width - width))
             camera_y = max(0, min(player_y - (height // 2), map_height - height))
 
-            # Draw map
+            #отрисовка карты
             draw_map(screen, camera_x, camera_y)
 
-            # Draw self (assuming cid is set)
+           
             if cid:
                 player_dir = players[cid].get('direction', 'down')
                 is_moving = players[cid].get('moving', False)
@@ -864,13 +864,13 @@ while running:
                     elif is_moving:
                         sprite = player_sprites[player_dir][frame_index % len(player_sprites[player_dir])]
                     else:
-                        # Idle animation, use first frame
+                        
                         sprite = player_sprites[player_dir][0]
                     draw_entity(screen, player_x - camera_x, player_y - camera_y, (0, 255, 0), sprite=sprite)
                 else:
                     draw_square(screen, player_x - camera_x, player_y - camera_y, (0, 255, 0))  # Green for self
 
-            # Draw other players
+            # Отрисовка игроков
             for pid, pos in players.items():
                 if pid != cid:
                     player_dir = pos.get('direction', 'down')
@@ -887,15 +887,15 @@ while running:
                     else:
                         draw_square(screen, pos['x'] - camera_x, pos['y'] - camera_y, (0, 0, 255))  # Blue for others
 
-            # Draw mobs
+            # Отрисовка мобов
             for mid, mob in mobs.items():
                 draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))  # Red for mobs
 
-            # Draw projectiles
+            # Отрисовка снарядов
             for pid, proj in projectiles.items():
                 draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  # Red circle for projectiles
 
-            # Draw chat
+            # Отрисовка чата
             if chat_input_mode:
                 rect_width = 400
                 rect_height = 250 + (30 if chat_input_mode else 0)
@@ -922,7 +922,7 @@ while running:
             pygame.display.flip()
 
     if not chat_input_mode and not menu and not solo_time and not solo_game_active and not in_options and not in_pause and not in_quit and multi_play:
-        # Send inputs for multiplayer
+        # Отправляем ввод игрока
         keys = pygame.key.get_pressed()
         inputs = {
             'type': 'input',

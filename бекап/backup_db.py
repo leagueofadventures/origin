@@ -10,7 +10,7 @@ from tkinter import messagebox, simpledialog, scrolledtext, ttk
 import threading
 import requests
 
-# Прямая ссылка на базу данных (только для личного использования)
+
 DATABASE_URL = "postgresql://game_server_db_user:ekAlZOOApuFwCjQJH3WTYgIETgTJikdo@dpg-d47248m3jp1c73atkceg-a.oregon-postgres.render.com/game_server_db"
 SERVER_HOST = "https://test-server-2zf4.onrender.com"
 

@@ -307,7 +307,7 @@ try:
         attack_sprites[dir_name] = []
         for i in range(1, 7):  # 6 кадров анимации для каждой стороны
             # Walk sprites
-            walk_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png', f'{dir_name}{i}.jpg')
+            walk_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png', f'{dir_name}{i}.png')
             img = pygame.image.load(walk_path).convert_alpha()
             player_sprites[dir_name].append(img)
             # Attack sprites (12 frames, but we use first 6 for simplicity)
@@ -702,7 +702,6 @@ while running:
     #             screen.blit(dark_en_images[image_index], (0, 0))
     #     else:
     #         if language == 'ru':
-    #         #Тут тоже ,
     #             image_index = min(int(elapsed / 8000), len(light_ru_images) - 1)
     #             screen.blit(light_ru_images[image_index], (0, 0))
     #         else:
@@ -760,8 +759,8 @@ while running:
         if not solo_mobs:
             for i in range(5):
                 solo_mobs.append({
-                    'x': width // 4,
-                    'y': height // 4,
+                    'x': 250, #width // 4,
+                    'y': 500, #height // 4,
                     'speed': 3,
                     'health': 100
                 })
@@ -816,21 +815,27 @@ while running:
         dy /= distance
         mob['x'] += dx * mob['speed']
         mob['y'] += dy * mob['speed']
+        
     
     for proj in solo_projectiles:
 
-        pr_dx = dx - proj['x']
-        pr_dy = dy-proj['y']
+        pr_dx = mob['x'] - proj['x']
+        pr_dy = mob['y'] - proj['y']
         distance = max(0.1, math.sqrt(pr_dx*pr_dx + pr_dy*pr_dy))
         pr_dx /= distance
         pr_dy /= distance
         proj['x'] += pr_dx * proj['speed']
         proj['y'] += pr_dy * proj['speed']
-    
-    
-    if mob['health'] <= 0:
-        solo_mobs.remove(mob)
 
+      
+        if proj['x'] - mob['x'] <= 10 and proj['y'] - mob['y'] <= 10:
+            mob['health'] -= 30
+            solo_projectiles.remove(proj)
+
+    for mob in solo_mobs:
+        if mob['health'] <= 0:
+            solo_mobs.remove(mob)
+          
     if mob['health'] > 0:
         for mob in solo_mobs:
             draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))
@@ -838,9 +843,7 @@ while running:
     for proj in solo_projectiles:
         draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  # Red circle for projectiles
 
-    for proj in solo_projectiles:
-        if mob['x'] == proj['x'] and mob['y'] == proj['y']:
-            mob['health'] = 0
+
 
     # Мультиплеер
     if multi_play:

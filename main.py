@@ -69,9 +69,11 @@ solo_player_speed = 15
 solo_player_direction = 'down'
 solo_player_moving = False
 solo_player_attacking = False
+solo_player_hp = 100
 
 solo_projectiles = []
 
+solo_mob_projectiles = []
 
 
 solo_mobs = []
@@ -311,7 +313,7 @@ try:
             img = pygame.image.load(walk_path).convert_alpha()
             player_sprites[dir_name].append(img)
             # Attack sprites (12 frames, but we use first 6 for simplicity)
-            attack_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png', f'{dir_name}{i}.jpg')
+            attack_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png', f'{dir_name}{i}.png')
             img_attack = pygame.image.load(attack_path).convert_alpha()
             attack_sprites[dir_name].append(img_attack)
 except Exception as e:
@@ -621,7 +623,6 @@ while running:
                     in_pause = False
                     solo_game_active = True
                     pause_close_time += pygame.time.get_ticks() - pause_start_time
-                    print('Пауза снята, продолжаем играть')
                     continue
             
             # Обработка нажатий в меню настроек
@@ -753,6 +754,7 @@ while running:
     
     # Проверка атаки
     solo_player_attacking = keys[pygame.K_SPACE]
+    solo_mob_attacking = True
 
     if solo_game_active and not in_pause:
 
@@ -761,7 +763,7 @@ while running:
                 solo_mobs.append({
                     'x': 250, #width // 4,
                     'y': 500, #height // 4,
-                    'speed': 3,
+                    'speed': 1,
                     'health': 100
                 })
         if not solo_projectiles:
@@ -772,7 +774,16 @@ while running:
                         'y': solo_player_y,
                         'speed': 5
                     })
-    
+
+        if not solo_mob_projectiles:
+            if solo_mob_attacking:
+                for mob in solo_mobs:
+                    for i in range(10):
+                        solo_mob_projectiles.append({
+                            'x': mob['x'],
+                            'y': mob['y'],
+                            'speed': 5
+                        })
     # Проверка коллизий
     if not collides_with_objects(new_x, new_y, 32):
         solo_player_x = new_x
@@ -805,7 +816,7 @@ while running:
     #     mob_y += dy * mob_speed
         
     #Отрисовка мобов
-
+    print(f"Хп: {solo_player_hp}")
 
     for mob in solo_mobs:
         dx = solo_player_x - mob['x']
@@ -832,6 +843,23 @@ while running:
             mob['health'] -= 30
             solo_projectiles.remove(proj)
 
+    for proj in solo_mob_projectiles:
+        pr_mob_dx = solo_player_x - proj['x']
+        pr_mob_dy = solo_player_y - proj['y']
+        distance = max(0.1, math.sqrt(pr_mob_dx*pr_mob_dx + pr_mob_dy*pr_mob_dy)) 
+        pr_mob_dx /= distance
+        pr_mob_dy /= distance
+        proj['x'] += pr_mob_dx * proj['speed']
+        proj['y'] += pr_mob_dy * proj['speed']
+
+        if proj['x'] - solo_player_x <= 10 and proj['y'] - solo_player_y <= 10:
+            if solo_player_hp > 0:
+                solo_player_hp -= 10
+                solo_mob_projectiles.remove(proj)
+            else:
+                screen.fill((0, 0, 0))
+
+
     for mob in solo_mobs:
         if mob['health'] <= 0:
             solo_mobs.remove(mob)
@@ -840,7 +868,14 @@ while running:
         for mob in solo_mobs:
             draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))
 
+    # if solo_player_hp <= 0:
+    #     screen.fill((0, 0, 0))
+
+
     for proj in solo_projectiles:
+        draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  
+    
+    for proj in solo_mob_projectiles:
         draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  
 
 
@@ -894,7 +929,7 @@ while running:
             for mid, mob in mobs.items():
                 draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))  # Red for mobs
 
-            # Отрисовка снарядов
+            # Отрисовка снарядов            
             for pid, proj in projectiles.items():
                 draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  # Red circle for projectiles
 

@@ -63,13 +63,14 @@ red = (255, 0, 0)
 black = (0, 0, 0)
 
 # Переменные для соло режима
-solo_player_x = width // 2
-solo_player_y = height // 2
-solo_player_speed = 15
-solo_player_direction = 'down'
-solo_player_moving = False
-solo_player_attacking = False
-solo_player_hp = 100
+solo_player = {}
+# solo_player_x = width // 2
+# solo_player_y = height // 2
+# solo_player_speed = 15
+# solo_player_direction = 'down'
+# solo_player_moving = False
+# solo_player_attacking = False
+# solo_player_hp = 100
 
 solo_projectiles = []
 
@@ -723,41 +724,53 @@ while running:
     #     continue  # Пропускаем остальную логику, пока идет катсцена
     solo_time = False
     solo_game_active = True
-    # Соло игра активна
- 
+    solo_mob_attacking = True
+    solo_mob_last_attacking_time = 0
         
     # Обработка ввода для соло режима
     keys = pygame.key.get_pressed()
+
+    if solo_game_active and not in_pause:
+          if not solo_player:
+            solo_player = {
+                'x': width // 2,
+                'y': height // 2,
+                'speed': 15,
+                'direction': 'down',
+                'moving': False,
+                'attacking': False,
+                'hp': 100
+            }
     
     # Сбрасываем флаги движения
-    solo_player_moving = False
-    new_x = solo_player_x
-    new_y = solo_player_y
+    solo_player['moving'] = False
+    new_x = solo_player['x']
+    new_y = solo_player['y']
     
     # Обработка перемещения
     if keys[pygame.K_w]:
-        new_y -= solo_player_speed
-        solo_player_direction = 'up'
-        solo_player_moving = True
+        new_y -= solo_player['speed'] 
+        solo_player['direction'] = 'up'
+        solo_player['moving'] = True
     if keys[pygame.K_s]:
-        new_y += solo_player_speed
-        solo_player_direction = 'down'
-        solo_player_moving = True
+        new_y += solo_player['speed']
+        solo_player['direction'] = 'down'
+        solo_player['moving'] = True
     if keys[pygame.K_a]:
-        new_x -= solo_player_speed
-        solo_player_direction = 'left'
-        solo_player_moving = True
+        new_x -= solo_player['speed']
+        solo_player['direction'] = 'left'
+        solo_player['moving'] = True
     if keys[pygame.K_d]:
-        new_x += solo_player_speed
-        solo_player_direction = 'right'
-        solo_player_moving = True
+        new_x += solo_player['speed']
+        solo_player['direction'] = 'right'
+        solo_player['moving'] = True
+
     
     # Проверка атаки
-    solo_player_attacking = keys[pygame.K_SPACE]
-    solo_mob_attacking = True
+    solo_player['attacking'] = keys[pygame.K_SPACE]
 
     if solo_game_active and not in_pause:
-
+        current_time = pygame.time.get_ticks()
         if not solo_mobs:
             for i in range(5):
                 solo_mobs.append({
@@ -767,47 +780,50 @@ while running:
                     'health': 100
                 })
         if not solo_projectiles:
-            if solo_player_attacking:
-                for i in range(10):
+            if solo_player['attacking']:
+                for i in range(1):
                     solo_projectiles.append({
-                        'x': solo_player_x,
-                        'y': solo_player_y,
+                        'x': solo_player['x'],
+                        'y': solo_player['y'],
                         'speed': 5
                     })
 
         if not solo_mob_projectiles:
-            if solo_mob_attacking:
-                for mob in solo_mobs:
-                    for i in range(10):
-                        solo_mob_projectiles.append({
-                            'x': mob['x'],
-                            'y': mob['y'],
-                            'speed': 5
-                        })
+            if solo_mob_last_attacking_time - current_time >= 500:
+                if solo_mob_attacking:
+                    for mob in solo_mobs:
+                        for i in range(1):
+                            solo_mob_projectiles.append({
+                                'x': mob['x'],
+                                'y': mob['y'],
+                                'speed': 5 
+                            })
+
+      
     # Проверка коллизий
     if not collides_with_objects(new_x, new_y, 32):
-        solo_player_x = new_x
-        solo_player_y = new_y
+        solo_player['x'] = new_x
+        solo_player['y'] = new_y
     
     # Обновление камеры
-    camera_x = max(0, min(solo_player_x - (width // 2), map_width - width))
-    camera_y = max(0, min(solo_player_y - (height // 2), map_height - height))
+    camera_x = max(0, min(solo_player['x'] - (width // 2), map_width - width))
+    camera_y = max(0, min(solo_player['y'] - (height // 2), map_height - height))
     
     # Отрисовка
     screen.fill((0, 0, 0))
     draw_map(screen, camera_x, camera_y)
     
     # Отрисовка персонажа
-    if player_sprites and solo_player_direction in player_sprites:
-        if solo_player_attacking and attack_sprites and solo_player_direction in attack_sprites:
-            sprite = attack_sprites[solo_player_direction][frame_index % len(attack_sprites[solo_player_direction])]
-        elif solo_player_moving:
-            sprite = player_sprites[solo_player_direction][frame_index % len(player_sprites[solo_player_direction])]
+    if player_sprites and solo_player['direction'] in player_sprites:
+        if solo_player['attacking'] and attack_sprites and solo_player['direction'] in attack_sprites:
+            sprite = attack_sprites[solo_player['direction']][frame_index % len(attack_sprites[solo_player['direction']])]
+        elif solo_player['moving']:
+            sprite = player_sprites[solo_player['direction']][frame_index % len(player_sprites[solo_player['direction']])]
         else:
-            sprite = player_sprites[solo_player_direction][0]
-        draw_entity(screen, solo_player_x - camera_x, solo_player_y - camera_y, (0, 255, 0), sprite=sprite)
+            sprite = player_sprites[solo_player['direction']][0]
+        draw_entity(screen, solo_player['x'] - camera_x, solo_player['y'] - camera_y, (0, 255, 0), sprite=sprite)
     else:
-        draw_square(screen, solo_player_x - camera_x, solo_player_y - camera_y, (0, 255, 0))
+        draw_square(screen, solo_player['x'] - camera_x, solo_player['y'] - camera_y, (0, 255, 0))
 
     # for mob in mobs:
     #     dx = solo_player_x - mob_x
@@ -816,11 +832,11 @@ while running:
     #     mob_y += dy * mob_speed
         
     #Отрисовка мобов
-    print(f"Хп: {solo_player_hp}")
+    print(f"Хп: {solo_player['hp']}")
 
     for mob in solo_mobs:
-        dx = solo_player_x - mob['x']
-        dy = solo_player_y - mob['y']
+        dx = solo_player['x'] - mob['x']
+        dy = solo_player['y'] - mob['y']
         distance = max(0.1, math.sqrt(dx*dx + dy*dy))
         dx /= distance
         dy /= distance
@@ -838,26 +854,30 @@ while running:
         proj['x'] += pr_dx * proj['speed']
         proj['y'] += pr_dy * proj['speed']
 
-      
         if proj['x'] - mob['x'] <= 10 and proj['y'] - mob['y'] <= 10:
             mob['health'] -= 30
             solo_projectiles.remove(proj)
 
     for proj in solo_mob_projectiles:
-        pr_mob_dx = solo_player_x - proj['x']
-        pr_mob_dy = solo_player_y - proj['y']
+        pr_mob_dx = solo_player['x'] - proj['x']
+        pr_mob_dy = solo_player['y'] - proj['y']
         distance = max(0.1, math.sqrt(pr_mob_dx*pr_mob_dx + pr_mob_dy*pr_mob_dy)) 
         pr_mob_dx /= distance
         pr_mob_dy /= distance
         proj['x'] += pr_mob_dx * proj['speed']
         proj['y'] += pr_mob_dy * proj['speed']
 
-        if proj['x'] - solo_player_x <= 10 and proj['y'] - solo_player_y <= 10:
-            if solo_player_hp > 0:
-                solo_player_hp -= 10
-                solo_mob_projectiles.remove(proj)
-            else:
-                screen.fill((0, 0, 0))
+        solo_mob_last_attacking_time = current_time
+
+        solo_mob_attacking = False
+        
+        if proj['x'] - solo_player['x'] <= 10 and proj['y'] - solo_player['y'] <= 10:
+            solo_mob_projectiles.remove(proj)
+            solo_player['hp'] -= 10
+                
+
+    # if solo_player_hp <= 0:
+    #     screen.fill((0, 0, 0))
 
 
     for mob in solo_mobs:
@@ -874,7 +894,8 @@ while running:
 
     for proj in solo_projectiles:
         draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  
-    
+
+        
     for proj in solo_mob_projectiles:
         draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  
 

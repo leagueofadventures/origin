@@ -105,7 +105,7 @@ class Launcher:
         self.exit_button = tk.Button(button_frame, text="Выход", command=self.safe_exit,
                                     bg="#E74C3C", fg="white", font=("Arial", 10, "bold"),
                                     width=12, height=1)
-        self.exit_button.grid(row=0, column=2, padx=5)
+        self.exit_button.grid(row=0, column=2, padx=5)      
 
         # Прогресс-бар для обновлений
         self.progress_frame = tk.Frame(main_frame)

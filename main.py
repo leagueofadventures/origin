@@ -91,7 +91,7 @@ for i in range(3):
     try:
         toggle_image = 'on_toggle' + str(i) + '.png'
         toggle_file = os.path.join(PROJECT_DIR, 'images', toggle_image)
-        image = pygame.transform.scale(pygame.image.load(toggle_file), (120, 70))
+        image = pygame.transform.scale(pygame.image.load(toggle_file), (width//16, height//15.42857142857143))
         image_rect = image.get_rect()
         toggles_rect.append(image_rect)
         toggles.append(image)
@@ -104,7 +104,7 @@ for i in range(3):
     try:
         off_toggle_image = 'off_toggle' + str(i) + '.png'
         off_toggle_file = os.path.join(PROJECT_DIR, 'images', off_toggle_image)
-        image = pygame.transform.scale(pygame.image.load(off_toggle_file), (120, 70))
+        image = pygame.transform.scale(pygame.image.load(off_toggle_file), (width//16, height//15.42857142857143))
         image_rect = image.get_rect()
         off_toggles_rect.append(image_rect)
         off_toggles.append(image)
@@ -268,37 +268,37 @@ except FileNotFoundError:
     sys.exit()
 
 # Создание кнопок главного меню
-solo_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-solo_play_button.fill((0, 0, 0, 0))
-solo_play_button_rect = solo_play_button.get_rect(topleft=(815, 605))
+solo_play_button = pygame.Surface((width//6.4, height//15.42857142857143), pygame.SRCALPHA)
+solo_play_button.fill((0, 0, 0, 250))
+solo_play_button_rect = solo_play_button.get_rect(topleft=(width//2.355828220858896, height//1.785123966942149))
 
-multi_play_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-multi_play_button.fill((0, 0, 0,  0))
-multi_play_button_rect = multi_play_button.get_rect(topleft=(820, 720))
+multi_play_button = pygame.Surface((width//6.4, height//15.42857142857143), pygame.SRCALPHA)
+multi_play_button.fill((0, 0, 0,  250))
+multi_play_button_rect = multi_play_button.get_rect(topleft=(width//2.341463414634146, height//1.5))
 
-options_button = pygame.Surface((300, 70), pygame.SRCALPHA)
-options_button.fill((0, 0, 0, 0))
-options_button_rect = options_button.get_rect(topleft=(820, 820))
+options_button = pygame.Surface((width//6.4, height//15.42857142857143), pygame.SRCALPHA)
+options_button.fill((0, 0, 0, 250))
+options_button_rect = options_button.get_rect(topleft=(width//2.341463414634146, height//1.317073170731707))
 
-quit_button = pygame.Surface((270, 70), pygame.SRCALPHA)
-quit_button.fill((0, 0, 0, 0))
-quit_button_rect = quit_button.get_rect(topleft=(830, 920))
+quit_button = pygame.Surface((width//7.111111111111111, height//15.42857142857143), pygame.SRCALPHA)
+quit_button.fill((0, 0, 0, 250))
+quit_button_rect = quit_button.get_rect(topleft=(width//2.313253012048193, height//1.173913043478261))
 
-quit_yes_button = pygame.Surface((160, 65), pygame.SRCALPHA)
-quit_yes_button.fill((0, 0, 0, 0))
-quit_yes_button_rect = quit_yes_button.get_rect(topleft=(785, 590))
+quit_yes_button = pygame.Surface((width//12, height//16.61538461538462), pygame.SRCALPHA)
+quit_yes_button.fill((0, 0, 0, 250))
+quit_yes_button_rect = quit_yes_button.get_rect(topleft=(width//2.445859872611465, height//1.830508474576271))
 
-quit_no_button = pygame.Surface((160, 65), pygame.SRCALPHA)
-quit_no_button.fill((0, 0, 0, 0))
-quit_no_button_rect = quit_no_button.get_rect(topleft=(975, 590))
+quit_no_button = pygame.Surface((width//12, height//16.61538461538462), pygame.SRCALPHA)
+quit_no_button.fill((0, 0, 0, 250))
+quit_no_button_rect = quit_no_button.get_rect(topleft=(width//1.969230769230769, height//1.830508474576271))
 
-continue_solo_button = pygame.Surface((470, 130), pygame.SRCALPHA)
-continue_solo_button.fill((0, 0, 0, 0))
-continue_solo_button_rect = continue_solo_button.get_rect(topleft=(738, 516))
+continue_solo_button = pygame.Surface((width//4.085106382978723, height//8.307692307692308), pygame.SRCALPHA)
+continue_solo_button.fill((0, 0, 0, 250))
+continue_solo_button_rect = continue_solo_button.get_rect(topleft=(width//2.601626016260163, height//2.093023255813953))
 
-exit_to_menu_button = pygame.Surface((470, 130), pygame.SRCALPHA)
-exit_to_menu_button.fill((0, 0, 0, 0))
-exit_to_menu_button_rect = exit_to_menu_button.get_rect(topleft=(739, 687))
+exit_to_menu_button = pygame.Surface((width//4.085106382978723, height//8.307692307692308), pygame.SRCALPHA)
+exit_to_menu_button.fill((0, 0, 0, 250))
+exit_to_menu_button_rect = exit_to_menu_button.get_rect(topleft=(width//2.598105548037889, height//1.572052401746725))
 
 # Загрузка спрайтов персонажа
 player_sprites = {}
@@ -543,8 +543,8 @@ while running:
                     menu = False
                     in_options = False
                     multi_play = False
-                    solo_time = True  # Начинаем катсцену
-                    solo_game_active = False  # Игра еще не активна
+                    solo_time = False  # Начинаем катсцену
+                    solo_game_active = True  # Игра еще не активна
                     solo_start_time = pygame.time.get_ticks()
                     pause_close_time = 0
                     screen.fill(black)
@@ -723,7 +723,7 @@ while running:
 
         solo_time = False
         solo_game_active = True
-        solo_mob_attacking = True
+       
         
         pygame.display.flip()
     #     continue  # Пропускаем остальную логику, пока идет катсцена
@@ -733,8 +733,11 @@ while running:
         
     # Обработка ввода для соло режима
     keys = pygame.key.get_pressed()
+    solo_mob_last_attacking_time = 0
+    solo_mob_attacking = True
 
     if solo_game_active and not in_pause:
+        current_time = pygame.time.get_ticks()
         if not solo_player:
             solo_player = {
                 'x': width // 2,
@@ -773,36 +776,37 @@ while running:
         # Проверка атаки
         solo_player['attacking'] = keys[pygame.K_SPACE]
 
-        if solo_game_active and not in_pause:
-            current_time = pygame.time.get_ticks()
-            if not solo_mobs:
-                for i in range(5):
-                    solo_mobs.append({
-                        'x': 250, #width // 4,
-                        'y': 500, #height // 4,
-                        'speed': 1,
-                        'health': 100
-                    })
-            if not solo_projectiles:
-                if solo_player['attacking']:
-                    for i in range(1):
-                        solo_projectiles.append({
-                            'x': solo_player['x'],
-                            'y': solo_player['y'],
-                            'speed': 5
-                        })
+        # if solo_game_active and not in_pause:
+            # current_time = pygame.time.get_ticks()
 
-            if not solo_mob_projectiles:
-                print(f"current time: {current_time}")
-                if current_time >= 5000:
-                    if solo_mob_attacking:
-                        for mob in solo_mobs:
-                            for i in range(1):
-                                solo_mob_projectiles.append({
-                                    'x': mob['x'],
-                                    'y': mob['y'],
-                                    'speed': 5 
-                                })
+        if not solo_mobs:
+            for i in range(5):
+                solo_mobs.append({
+                    'x': 250, #width // 4,
+                    'y': 500, #height // 4,
+                    'speed': 1,
+                    'health': 100
+                })
+        if not solo_projectiles:
+            if solo_player['attacking']:
+                for i in range(1):
+                    solo_projectiles.append({
+                        'x': solo_player['x'],
+                        'y': solo_player['y'],
+                        'speed': 5
+                    })
+
+        if not solo_mob_projectiles:
+            print(f"current time: {current_time}")
+            if current_time >= 5000:
+                if solo_mob_attacking:
+                    for mob in solo_mobs:
+                        for i in range(1):
+                            solo_mob_projectiles.append({
+                                'x': mob['x'],
+                                'y': mob['y'],
+                                'speed': 5 
+                            })
 
         
         # Проверка коллизий
@@ -863,23 +867,25 @@ while running:
                 mob['health'] -= 50
                 solo_projectiles.remove(proj)
 
-        for proj in solo_mob_projectiles:
-            pr_mob_dx = solo_player['x'] - proj['x']
-            pr_mob_dy = solo_player['y'] - proj['y']
-            distance = max(0.1, math.sqrt(pr_mob_dx*pr_mob_dx + pr_mob_dy*pr_mob_dy)) 
-            pr_mob_dx /= distance
-            pr_mob_dy /= distance
-            proj['x'] += pr_mob_dx * proj['speed']
-            proj['y'] += pr_mob_dy * proj['speed']
+        if solo_mob_attacking:
+            if current_time - solo_mob_last_attacking_time >= 1000:
+                for proj in solo_mob_projectiles:
+                    pr_mob_dx = solo_player['x'] - proj['x']
+                    pr_mob_dy = solo_player['y'] - proj['y']
+                    distance = max(0.1, math.sqrt(pr_mob_dx*pr_mob_dx + pr_mob_dy*pr_mob_dy)) 
+                    pr_mob_dx /= distance
+                    pr_mob_dy /= distance
+                    proj['x'] += pr_mob_dx * proj['speed']
+                    proj['y'] += pr_mob_dy * proj['speed']
 
-            solo_mob_last_attacking_time = current_time
+                    solo_mob_last_attacking_time = current_time
 
-            solo_mob_attacking = False
-            distance = math.sqrt((proj['x'] - solo_player['x'])**2 + (proj['y'] - solo_player['y'])**2)
-            if distance < 30:
-                if solo_player['hp'] > 0:
-                    solo_mob_projectiles.remove(proj)
-                    solo_player['hp'] -= 50
+                    solo_mob_attacking = False
+                    distance = math.sqrt((proj['x'] - solo_player['x'])**2 + (proj['y'] - solo_player['y'])**2)
+                    if distance < 30:
+                        if solo_player['hp'] > 0:
+                            solo_mob_projectiles.remove(proj)
+                            solo_player['hp'] -= 50
                     
 
         if solo_player['hp'] <= 0:

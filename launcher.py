@@ -11,6 +11,7 @@ import zipfile
 import tempfile
 import shutil
 from pathlib import Path
+from git import Repo
 
 # Настройки сервера
 SERVER_HOST = "https://league-of-adventures.onrender.com"
@@ -517,6 +518,12 @@ class Launcher:
         self.login_button.config(state=state)
         self.register_button.config(state=state)
         self.exit_button.config(state=state)
+
+    def download_from_git(self):
+        if not os.path.exists('./origin'):
+            Repo.clone_from('https://github.com/leagueofadventures/origin', './origin', branch='download')
+        else:
+            pass
 
 if __name__ == "__main__":
   

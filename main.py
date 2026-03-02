@@ -269,40 +269,40 @@ except FileNotFoundError:
 
 # Создание кнопок главного меню
 solo_play_button = pygame.Surface((width//6.4, height//15.42857142857143), pygame.SRCALPHA)
-solo_play_button.fill((0, 0, 0, 250))
+solo_play_button.fill((0, 0, 0, 0))
 solo_play_button_rect = solo_play_button.get_rect(topleft=(width//2.355828220858896, height//1.785123966942149))
 
 multi_play_button = pygame.Surface((width//6.4, height//15.42857142857143), pygame.SRCALPHA)
-multi_play_button.fill((0, 0, 0,  250))
+multi_play_button.fill((0, 0, 0,  0))
 multi_play_button_rect = multi_play_button.get_rect(topleft=(width//2.341463414634146, height//1.5))
 
 options_button = pygame.Surface((width//6.4, height//15.42857142857143), pygame.SRCALPHA)
-options_button.fill((0, 0, 0, 250))
+options_button.fill((0, 0, 0, 0))
 options_button_rect = options_button.get_rect(topleft=(width//2.341463414634146, height//1.317073170731707))
 
 quit_button = pygame.Surface((width//7.111111111111111, height//15.42857142857143), pygame.SRCALPHA)
-quit_button.fill((0, 0, 0, 250))
+quit_button.fill((0, 0, 0, 0))
 quit_button_rect = quit_button.get_rect(topleft=(width//2.313253012048193, height//1.173913043478261))
 
 quit_yes_button = pygame.Surface((width//12, height//16.61538461538462), pygame.SRCALPHA)
-quit_yes_button.fill((0, 0, 0, 250))
+quit_yes_button.fill((0, 0, 0, 0))
 quit_yes_button_rect = quit_yes_button.get_rect(topleft=(width//2.445859872611465, height//1.830508474576271))
 
 quit_no_button = pygame.Surface((width//12, height//16.61538461538462), pygame.SRCALPHA)
-quit_no_button.fill((0, 0, 0, 250))
+quit_no_button.fill((0, 0, 0, 0))
 quit_no_button_rect = quit_no_button.get_rect(topleft=(width//1.969230769230769, height//1.830508474576271))
 
 continue_solo_button = pygame.Surface((width//4.085106382978723, height//8.307692307692308), pygame.SRCALPHA)
-continue_solo_button.fill((0, 0, 0, 250))
+continue_solo_button.fill((0, 0, 0, 0))
 continue_solo_button_rect = continue_solo_button.get_rect(topleft=(width//2.601626016260163, height//2.093023255813953))
 
 exit_to_menu_button = pygame.Surface((width//4.085106382978723, height//8.307692307692308), pygame.SRCALPHA)
-exit_to_menu_button.fill((0, 0, 0, 250))
+exit_to_menu_button.fill((0, 0, 0, 0))
 exit_to_menu_button_rect = exit_to_menu_button.get_rect(topleft=(width//2.598105548037889, height//1.572052401746725))
 
 # Загрузка спрайтов персонажа
 player_sprites = {}
-attack_sprites = {}
+attack_sprites = {} 
 directions = ['up', 'down', 'left', 'right']
 try:
     for dir_name in directions:
@@ -536,7 +536,7 @@ while running:
 
         if event.type == pygame.MOUSEBUTTONDOWN: 
             x, y = event.pos
-            print(f"Click at: {x}, {y}")
+            # print(f"Click at: {x}, {y}")
             
             if menu:    
                 if solo_play_button_rect.collidepoint(x, y):
@@ -579,9 +579,9 @@ while running:
                             screen.blit(light_ru_setting_png, (0, 0))
                         else:
                             screen.blit(light_en_setting_png, (0, 0))
-                        print(f'theme = {theme}')
+                        # print(f'theme = {theme}')
                     elif theme == 'dark':
-                        print(f'theme = {theme}')
+                        # print(f'theme = {theme}')
                         if language == 'ru':
                             screen.blit(dark_ru_setting_png, (0, 0))
                         else:
@@ -789,24 +789,23 @@ while running:
                 })
         if not solo_projectiles:
             if solo_player['attacking']:
-                for i in range(1):
-                    solo_projectiles.append({
-                        'x': solo_player['x'],
-                        'y': solo_player['y'],
-                        'speed': 5
-                    })
+                solo_projectiles.append({
+                    'x': solo_player['x'],
+                    'y': solo_player['y'],
+                    'speed': 5
+                })
+
+        for mob in solo_mobs:
+            mob_proj = mob
 
         if not solo_mob_projectiles:
-            print(f"current time: {current_time}")
             if current_time >= 5000:
                 if solo_mob_attacking:
-                    for mob in solo_mobs:
-                        for i in range(1):
-                            solo_mob_projectiles.append({
-                                'x': mob['x'],
-                                'y': mob['y'],
-                                'speed': 5 
-                            })
+                    solo_mob_projectiles.append({
+                        'x': mob_proj['x'],
+                        'y': mob_proj['y'],
+                        'speed': 5 
+                    })
 
         
         # Проверка коллизий
@@ -840,8 +839,7 @@ while running:
         #     mob_x += dx * mob_speed
         #     mob_y += dy * mob_speed
             
-        #Отрисовка мобов
-        print(f"Хп: {solo_player['hp']}")
+        #Отрисовка мобов)
 
         for mob in solo_mobs:
             dx = solo_player['x'] - mob['x']
@@ -852,7 +850,6 @@ while running:
             mob['x'] += dx * mob['speed']
             mob['y'] += dy * mob['speed']
 
-        
         for proj in solo_projectiles:
 
             pr_dx = mob['x'] - proj['x']
@@ -863,12 +860,22 @@ while running:
             proj['x'] += pr_dx * proj['speed']
             proj['y'] += pr_dy * proj['speed']
 
-            if proj['x'] - mob['x'] <= 10 and proj['y'] - mob['y'] <= 10:
-                mob['health'] -= 50
-                solo_projectiles.remove(proj)
 
-        if solo_mob_attacking:
-            if current_time - solo_mob_last_attacking_time >= 1000:
+            # player_distance = math.sqrt((proj['x'] - solo_player['x'])**2 + (proj['y'] - solo_player['y'])**2)
+            # if player_distance <= 30:
+            if proj['x'] - mob['x'] <= 10 and proj['y'] - mob['y'] <= 10:
+                if mob['health'] == 100:
+                    mob['health'] -= 50
+                    solo_projectiles.remove(proj)
+                else:
+                    solo_mobs.remove(mob)
+                
+
+        if current_time - solo_mob_last_attacking_time >= 1000:
+            solo_mob_attacking = True
+            if solo_mob_attacking:
+            # if current_time - solo_mob_last_attacking_time >= 1000:
+                solo_mob_last_attacking_time = current_time
                 for proj in solo_mob_projectiles:
                     pr_mob_dx = solo_player['x'] - proj['x']
                     pr_mob_dy = solo_player['y'] - proj['y']
@@ -878,27 +885,28 @@ while running:
                     proj['x'] += pr_mob_dx * proj['speed']
                     proj['y'] += pr_mob_dy * proj['speed']
 
-                    solo_mob_last_attacking_time = current_time
-
                     solo_mob_attacking = False
                     distance = math.sqrt((proj['x'] - solo_player['x'])**2 + (proj['y'] - solo_player['y'])**2)
                     if distance < 30:
                         if solo_player['hp'] > 0:
-                            solo_mob_projectiles.remove(proj)
                             solo_player['hp'] -= 50
-                    
+                            solo_mob_projectiles.remove(proj)
+                            solo_mob_attacking = False    
 
         if solo_player['hp'] <= 0:
             screen.fill((0, 0, 0))
 
-
-        for mob in solo_mobs:
-            if mob['health'] <= 0:
-                solo_mobs.remove(mob)
             
-        if mob['health'] > 0:
-            for mob in solo_mobs:
+    
+        for mob in solo_mobs:
+            if mob['health'] > 0:
                 draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))
+            else:
+                solo_mobs.remove(mob)
+
+        # elif mob['health'] <= 0:
+        #     for mob in solo_mobs:
+        #         solo_mobs.remove(mob)
 
         if solo_player['hp'] <= 0:
             screen.fill((0, 0, 0))

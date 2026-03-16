@@ -43,19 +43,22 @@ def draw_square(surface, x, y, color, size=32):
 
 #классы для соло игры
 class Mobs(pygame.sprite.Sprite):
-    def __init__(self, x, y, speed, health):
+    def __init__(self, x, y, speed, health, last_attacking_time, attacking):
         super().__init__()
         self.x = x
         self.y = y
         self.speed = speed
         self.health = health
+        self.last_attacking_time = last_attacking_time
+        self.attacking = attacking
 
     def reset(self, x, y, camera_x, camera_y):
         if self.health > 0:
             draw_square(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0))
         elif self.health <= 0:
-            self.heath = 100
-            Mobs.reset(self, width//4, height//4, camera_x, camera_y)
+            # self.heath = 100
+            self.reset(width//4, height//4, camera_x, camera_y)
+
     def moving(self, solo_player_class):
         dx = solo_player_class.x - self.x
         dy = solo_player_class.y - self.y
@@ -64,6 +67,50 @@ class Mobs(pygame.sprite.Sprite):
         dy /= distance
         self.x += dx * self.speed
         self.y += dy * self.speed
+
+    def attack(self, current_time, camera_x, camera_y, solo_player_class, solo_mob_projectiles, kill):
+        if current_time - solo_mob_last_attacking_time >= 1000:
+            self.attacking = True
+            if self.attacking:
+            # if current_time - solo_mob_last_attacking_time >= 1000:
+                self.last_attacking_time = current_time
+                for proj in solo_mob_projectiles:
+                    draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)
+                    proj['x'] += proj['dx'] * proj['speed']
+                    proj['y'] += proj['dy'] * proj['speed']
+
+                    self.attacking = False
+                    distance = math.sqrt((proj['x'] - solo_player_class.x)**2 + (proj['y'] - solo_player_class.y)**2)
+                    if solo_player_class.health > 0:
+                        if distance < 30:
+                            solo_player_class.health -= 34
+                            solo_mob_projectiles.remove(proj)
+                            self.attacking = False   
+                        
+                    if proj['x'] <= 0 or proj['x'] >= 1920 or proj['y'] <= 0 or proj['y'] >= 1080:
+                        solo_mob_projectiles.remove(proj)
+                        
+                    elif solo_player_class.health <= 0:
+                        self.reset(width//4, height//4, camera_x, camera_y)
+                        solo_time = False
+                        solo_game_active = True  # Запускаем соло игру
+                        # Сбрасываем камеру и позицию игрока
+                        camera_x = 0
+                        camera_y = 0
+                        solo_player_class.x = width // 2
+                        solo_player_class.y = height // 2
+                        self.last_attacking_time = 0
+                        self.attacking = True
+                        current_time = pygame.time.get_ticks()
+                        solo_player_class.direction = 'down'
+                        solo_player_class.attacking = False
+                        solo_player_class.hp = 100
+                            
+                        # Сбрасываем флаги движения
+                        solo_player_class.moving = False
+                        new_x = solo_player_class.x
+                        new_y = solo_player_class.y
+                        kill = False
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, speed, direction, moving, attacking, health): 
@@ -95,20 +142,39 @@ class Player(pygame.sprite.Sprite):
                 img_attack = pygame.image.load(attack_path).convert_alpha()
                 self.attack_sprites[dir_name].append(img_attack)
 
-    def reset(self, camera_x, camera_y):
+    def reset(self, camera_x, camera_y, frame_index):
         if self.sprites and self.direction in self.sprites:
             if self.attacking and self.attack_sprites and self.direction in self.attack_sprites:
-                sprite = attack_sprites[solo_player['direction']][frame_index % len(attack_sprites[self.direction])]
-            elif solo_player['moving']:
-                sprite = player_sprites[solo_player['direction']][frame_index % len(player_sprites[self.direction])]
+                sprite = self.attack_sprites[self.direction][frame_index % len(self.attack_sprites[self.direction])]
+            elif self.moving:
+                sprite = self.sprites[self.direction][frame_index % len(self.sprites[self.direction])]
             else:
-                sprite = player_sprites[solo_player['direction']][0]
+                sprite = self.sprites[self.direction][0]
             draw_entity(screen, self.x - camera_x, self.y - camera_y, (0, 255, 0), sprite=sprite)
         else:
             draw_square(screen, self.x - camera_x, self.y - camera_y, (0, 255, 0))
 
+    def attack(self, kill, solo_mobs, mobb):
+        for proj in solo_projectiles:
+            draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  
 
+            pr_dx = mobb.x - proj['x']
+            pr_dy = mobb.y - proj['y']
+            distance = max(0.1, math.sqrt(pr_dx*pr_dx + pr_dy*pr_dy))
+            pr_dx /= distance
+            pr_dy /= distance
+            proj['x'] += pr_dx * proj['speed']
+            proj['y'] += pr_dy * proj['speed']
 
+            for mob in solo_mobs:
+                player_distance = math.sqrt((proj['x'] - mobb.x)**2 + (proj['y'] - mobb.y)**2)
+                if mob.health > 0:
+                    if player_distance <= 30:
+                        mob.health -= 34
+                        mob.attacking = False
+                        kill = True
+                if proj['x'] <= 0 or proj['x'] >= 1920 or proj['y'] <= 0 or proj['y'] >= 1080:
+                    solo_mob_projectiles.remove(proj)
 
 
 
@@ -146,33 +212,17 @@ solo_player_class = Player(width//2, height//2, 15, 'down', False, False, 100)
 pause_start_time = 0
 
 #создание соло моба
-mobb = Mobs(width//3, height//4, 1, 100)
+mobb = Mobs(width//3, height//4, 1, 100, 0, False,)
 
+solo_mobs = []
 
-# Переменные меню
-
-
-# Переменные для соло режима
-# solo_player = {}
-# solo_player_x = width // 2
-# solo_player_y = height // 2
-# solo_player_speed = 15
-# solo_player_direction = 'down'
-# solo_player_moving = False
-# solo_player_attacking = False
-# solo_player_hp = 100
 
 solo_projectiles = []
 
 solo_mob_projectiles = []
 
 
-solo_mobs = []
-# mob_x = width // 4
-# mob_y = height // 4
-# mob_speed = 2
-mob_direction = 'down'
-mob_moving = False
+
 
 # Загрузка переключателей для настроек
 toggles = []
@@ -391,26 +441,26 @@ exit_to_menu_button_rect = exit_to_menu_button.get_rect(topleft=(width//2.598105
 
 
 
- # player_sprites = {}
-# attack_sprites = {} 
-# directions = ['up', 'down', 'left', 'right']
-# try:
-#     for dir_name in directions:
-#         player_sprites[dir_name] = []
-#         attack_sprites[dir_name] = []
-#         for i in range(1, 7):  # 6 кадров анимации для каждой стороны
-#             # Walk sprites
-#             walk_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png', f'{dir_name}{i}.png')
-#             img = pygame.image.load(walk_path).convert_alpha()
-#             player_sprites[dir_name].append(img)
-#             # Attack sprites (12 frames, but we use first 6 for simplicity)
-#             attack_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png', f'{dir_name}{i}.png')
-#             img_attack = pygame.image.load(attack_path).convert_alpha()
-#             attack_sprites[dir_name].append(img_attack)
-# except Exception as e:
-#     print(f"Ошибка загрузки спрайтов персонажа: {e}. Используем квадраты.")
-#     player_sprites = {}
-#     attack_sprites = {}
+player_sprites = {}
+attack_sprites = {} 
+directions = ['up', 'down', 'left', 'right']
+try:
+    for dir_name in directions:
+        player_sprites[dir_name] = []
+        attack_sprites[dir_name] = []
+        for i in range(1, 7):  # 6 кадров анимации для каждой стороны
+            # Walk sprites
+            walk_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png', f'{dir_name}{i}.png')
+            img = pygame.image.load(walk_path).convert_alpha()
+            player_sprites[dir_name].append(img)
+            # Attack sprites (12 frames, but we use first 6 for simplicity)
+            attack_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png', f'{dir_name}{i}.png')
+            img_attack = pygame.image.load(attack_path).convert_alpha()
+            attack_sprites[dir_name].append(img_attack)
+except Exception as e:
+    print(f"Ошибка загрузки спрайтов персонажа: {e}. Используем квадраты.")
+    player_sprites = {}
+    attack_sprites = {}
 
 # Функция для рисования сущностей
 def draw_entity(surface, x, y, color, size=32, sprite=None, frame=0):
@@ -805,8 +855,8 @@ while running:
             # Сбрасываем камеру и позицию игрока
             camera_x = 0
             camera_y = 0
-            solo_player_x = width // 2
-            solo_player_y = height // 2
+            solo_player_class.x = width // 2
+            solo_player_class.y = height // 2
         
         # Проверяем, закончилась ли катсцена
         if elapsed > change_time * 2 + (len(light_ru_images) * 8000 if theme == 'light' else len(dark_ru_images) * 8000) or elapsed > change_time * 2 + (len(light_en_images) * 8000 if theme == 'light' else len(dark_en_images) * 8000):
@@ -815,8 +865,8 @@ while running:
             # Сбрасываем камеру и позицию игрока
             camera_x = 0
             camera_y = 0
-            solo_player_x = width // 2
-            solo_player_y = height // 2
+            solo_player_class.x = width // 2
+            solo_player_class.y = height // 2
 
 
         pygame.display.flip()
@@ -826,8 +876,8 @@ while running:
     if solo_game_active and not in_pause:
         solo_time = False
         solo_mob_last_attacking_time = 0
-        solo_mob_attacking = True
-        solo_mob_last_attacking_time = 0
+        mobb.attacking = True 
+        mobb.last_attacking_time = 0
         current_time = pygame.time.get_ticks()
     
         # Сбрасываем флаги движения
@@ -838,38 +888,35 @@ while running:
         
         # Обработка перемещения
         if keys[pygame.K_w]:
-            new_y -= solo_player['speed'] 
-            solo_player['direction'] = 'up'
-            solo_player['moving'] = True
+            new_y -= solo_player_class.speed
+            solo_player_class.direction = 'up'
+            solo_player_class.moving = True
         if keys[pygame.K_s]:
-            new_y += solo_player['speed']
-            solo_player['direction'] = 'down'
-            solo_player['moving'] = True
+            new_y += solo_player_class.speed
+            solo_player_class.direction = 'down'
+            solo_player_class.moving = True
         if keys[pygame.K_a]:
-            new_x -= solo_player['speed']
-            solo_player['direction'] = 'left'
-            solo_player['moving'] = True
+            new_x -= solo_player_class.speed
+            solo_player_class.direction = 'left'
+            solo_player_class.moving = True
         if keys[pygame.K_d]:
-            new_x += solo_player['speed']
-            solo_player['direction'] = 'right'
-            solo_player['moving'] = True
+            new_x += solo_player_class.speed
+            solo_player_class.direction = 'right'
+            solo_player_class.moving = True
 
         
         # Проверка атаки
         solo_player_class.attacking = keys[pygame.K_SPACE]
 
-        # if solo_game_active and not in_pause:
-            # current_time = pygame.time.get_ticks()
-
         if not solo_mobs:
             for i in range(5):
-                solo_mobs.append(Mobs(width//4, height//4, 1, 100))
+                solo_mobs.append(Mobs(width//4, height//4, 1, 100, 0, False))
                 
         if not solo_projectiles:
-            if solo_player['attacking']:
+            if solo_player_class.attacking:
                 solo_projectiles.append({
-                    'x': solo_player['x'],
-                    'y': solo_player['y'],
+                    'x': solo_player_class.x,
+                    'y': solo_player_class.y,
                     'speed': 5
                 })
 
@@ -878,9 +925,9 @@ while running:
 
         if not solo_mob_projectiles:
             if current_time >= 5000:
-                if solo_mob_attacking:
-                    dx = solo_player['x'] - mob_proj.x
-                    dy = solo_player['y'] - mob_proj.y
+                if mobb.attacking:
+                    dx = solo_player_class.x - mob_proj.x
+                    dy = solo_player_class.y - mob_proj.y
                     distance = max(0.1, math.sqrt(dx*dx + dy*dy))
                     solo_mob_projectiles.append({
                         'x': mob_proj.x,
@@ -893,115 +940,32 @@ while running:
         
         # Проверка коллизий
         if not collides_with_objects(new_x, new_y, 32):
-            solo_player['x'] = new_x
-            solo_player['y'] = new_y
+            solo_player_class.x = new_x
+            solo_player_class.y = new_y
         
         # Обновление камеры
-        camera_x = max(0, min(solo_player['x'] - (width // 2), map_width - width))
-        camera_y = max(0, min(solo_player['y'] - (height // 2), map_height - height))
+        camera_x = max(0, min(solo_player_class.x - (width // 2), map_width - width))
+        camera_y = max(0, min(solo_player_class.y - (height // 2), map_height - height))
         
         # Отрисовка
         screen.fill((0, 0, 0))
         draw_map(screen, camera_x, camera_y)
         
         # Отрисовка персонажа
-        if player_sprites and solo_player['direction'] in player_sprites:
-            if solo_player['attacking'] and attack_sprites and solo_player['direction'] in attack_sprites:
-                sprite = attack_sprites[solo_player['direction']][frame_index % len(attack_sprites[solo_player['direction']])]
-            elif solo_player['moving']:
-                sprite = player_sprites[solo_player['direction']][frame_index % len(player_sprites[solo_player['direction']])]
-            else:
-                sprite = player_sprites[solo_player['direction']][0]
-            draw_entity(screen, solo_player['x'] - camera_x, solo_player['y'] - camera_y, (0, 255, 0), sprite=sprite)
-        else:
-            draw_square(screen, solo_player['x'] - camera_x, solo_player['y'] - camera_y, (0, 255, 0))
+        solo_player_class.reset(camera_x, camera_y, frame_index)
+
 
 
         for mob in solo_mobs:
             mob.reset(width//4, height//4, camera_x, camera_y)
-            mob.moving()
+            mob.moving(solo_player_class)
 
 
 
-
-        for proj in solo_projectiles:
-            draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  
-
-            pr_dx = mobb.x - proj['x']
-            pr_dy = mobb.y - proj['y']
-            distance = max(0.1, math.sqrt(pr_dx*pr_dx + pr_dy*pr_dy))
-            pr_dx /= distance
-            pr_dy /= distance
-            proj['x'] += pr_dx * proj['speed']
-            proj['y'] += pr_dy * proj['speed']
-
-            for mob in solo_mobs:
-                player_distance = math.sqrt((proj['x'] - mobb.x)**2 + (proj['y'] - mobb.y)**2)
-                if mob.health > 0:
-                    if player_distance <= 30:
-                    # if proj['x'] - mob['x'] <= 10 and proj['y'] - mob['y'] <= 10:
-                        mob.health -= 34
-                        solo_mob_attacking = False
-                        kill = True
-                if proj['x'] <= 0 or proj['x'] >= 1920 or proj['y'] <= 0 or proj['y'] >= 1080:
-                    solo_mob_projectiles.remove(proj)
+        solo_player_class.attack(kill, solo_mobs, mobb)
+        mobb.attack(current_time, camera_x, camera_y, solo_player_class, solo_mob_projectiles, kill)
         if kill:
             solo_projectiles.remove(proj)
-
-
-                
-
-        if current_time - solo_mob_last_attacking_time >= 1000:
-            solo_mob_attacking = True
-            if solo_mob_attacking:
-            # if current_time - solo_mob_last_attacking_time >= 1000:
-                solo_mob_last_attacking_time = current_time
-                for proj in solo_mob_projectiles:
-                    draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)
-                    proj['x'] += proj['dx'] * proj['speed']
-                    proj['y'] += proj['dy'] * proj['speed']
-
-                    solo_mob_attacking = False
-                    distance = math.sqrt((proj['x'] - solo_player['x'])**2 + (proj['y'] - solo_player['y'])**2)
-                    if solo_player['hp'] > 0:
-                        if distance < 30:
-                            solo_player['hp'] -= 34
-                            solo_mob_projectiles.remove(proj)
-                            solo_mob_attacking = False   
-                     
-                    if proj['x'] <= 0 or proj['x'] >= 1920 or proj['y'] <= 0 or proj['y'] >= 1080:
-                        solo_mob_projectiles.remove(proj)
-                        
-                    elif solo_player['hp'] <= 0:
-                        mobb.reset(width//4, height//4, camera_x, camera_y)
-                        solo_time = False
-                        solo_game_active = True  # Запускаем соло игру
-                        # Сбрасываем камеру и позицию игрока
-                        camera_x = 0
-                        camera_y = 0
-                        solo_player_x = width // 2
-                        solo_player_y = height // 2
-                        solo_time = False
-                        solo_mob_last_attacking_time = 0
-                        solo_mob_attacking = True
-                        solo_mob_last_attacking_time = 0
-                        current_time = pygame.time.get_ticks()
-                        solo_player = {
-                            'x': width // 2,
-                            'y': height // 2,
-                            'speed': 15,
-                            'direction': 'down',
-                            'moving': False,
-                            'attacking': False,
-                            'hp': 100
-                        }
-                            
-                        # Сбрасываем флаги движения
-                        solo_player['moving'] = False
-                        new_x = solo_player['x']
-                        new_y = solo_player['y']
-                        kill = False
-
 
 
     # Мультиплеер

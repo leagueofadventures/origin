@@ -9,6 +9,7 @@ import argparse
 import threading
 import time
 import math
+
 # Определяем текущую директорию проекта
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -24,8 +25,6 @@ SERVER_URL = args.server
 # Инициализация Pygame
 pygame.init()
 
-
-
 pygame.mixer.init()
 pygame.display.init()
 
@@ -39,14 +38,82 @@ else:
 info = pygame.display.Info()
 width, height = info.current_w, info.current_h
 
-# Шрифты
-font_large = pygame.font.SysFont(None, 48)
-font = pygame.font.SysFont(None, 24)
+def draw_square(surface, x, y, color, size=32):
+    pygame.draw.rect(surface, color, (x - size//2, y - size//2, size, size))
 
-# Анимация
-animation_frame = 0
+#классы для соло игры
+class Mobs(pygame.sprite.Sprite):
+    def __init__(self, x, y, speed, health):
+        super().__init__()
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.health = health
 
-# Переменные меню
+    def reset(self, x, y, camera_x, camera_y):
+        if self.health > 0:
+            draw_square(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0))
+        elif self.health <= 0:
+            self.heath = 100
+            Mobs.reset(self, width//4, height//4, camera_x, camera_y)
+    def moving(self, solo_player_class):
+        dx = solo_player_class.x - self.x
+        dy = solo_player_class.y - self.y
+        distance = max(0.1, math.sqrt(dx*dx + dy*dy))
+        dx /= distance
+        dy /= distance
+        self.x += dx * self.speed
+        self.y += dy * self.speed
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self, x, y, speed, direction, moving, attacking, health): 
+        super().__init__()
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.direction = direction
+        self.moving = moving
+        self.attacking = attacking
+        self.health = health
+        self.sprites = {}
+        self.attack_sprites = {}
+        self.load_sprites()
+
+    def load_sprites(self):
+        directions = ['up', 'down', 'left', 'right']
+        for dir_name in directions:
+            self.sprites[dir_name] = []
+            self.attack_sprites[dir_name] = []
+
+            for i in range(1, 7):  # 6 кадров анимации для каждой стороны
+                # Walk sprites
+                walk_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png', f'{dir_name}{i}.png')
+                img = pygame.image.load(walk_path).convert_alpha()
+                self.sprites[dir_name].append(img)
+                # Attack sprites (12 frames, but we use first 6 for simplicity)
+                attack_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png', f'{dir_name}{i}.png')
+                img_attack = pygame.image.load(attack_path).convert_alpha()
+                self.attack_sprites[dir_name].append(img_attack)
+
+    def reset(self, camera_x, camera_y):
+        if self.sprites and self.direction in self.sprites:
+            if self.attacking and self.attack_sprites and self.direction in self.attack_sprites:
+                sprite = attack_sprites[solo_player['direction']][frame_index % len(attack_sprites[self.direction])]
+            elif solo_player['moving']:
+                sprite = player_sprites[solo_player['direction']][frame_index % len(player_sprites[self.direction])]
+            else:
+                sprite = player_sprites[solo_player['direction']][0]
+            draw_entity(screen, self.x - camera_x, self.y - camera_y, (0, 255, 0), sprite=sprite)
+        else:
+            draw_square(screen, self.x - camera_x, self.y - camera_y, (0, 255, 0))
+
+
+
+
+
+
+
+#создание переменных и флагов
 menu = True
 in_options = False  # Добавляем флаг для меню настроек
 solo_time = False
@@ -62,8 +129,31 @@ language = 'ru'
 red = (255, 0, 0)
 black = (0, 0, 0)
 
+# Шрифты
+font_large = pygame.font.SysFont(None, 48)
+font = pygame.font.SysFont(None, 24)
+
+# Анимация
+animation_frame = 0
+
+# Состояния переключателей (True = включен, False = выключен)
+toggle_states = [False, False, False]
+
+# Загрузка спрайтов персонажа
+solo_player_class = Player(width//2, height//2, 15, 'down', False, False, 100)
+
+# Переменная для хранения времени начала паузы
+pause_start_time = 0
+
+#создание соло моба
+mobb = Mobs(width//3, height//4, 1, 100)
+
+
+# Переменные меню
+
+
 # Переменные для соло режима
-solo_player = {}
+# solo_player = {}
 # solo_player_x = width // 2
 # solo_player_y = height // 2
 # solo_player_speed = 15
@@ -111,8 +201,7 @@ for i in range(3):
     except FileNotFoundError:
         print('Ошибка. Один из off_toggle не найден')
 
-# Состояния переключателей (True = включен, False = выключен)
-toggle_states = [False, False, False]
+
 
 # Загрузка изображений для текстовой части игры
 light_ru_images = []
@@ -300,27 +389,28 @@ exit_to_menu_button = pygame.Surface((width//4.085106382978723, height//8.307692
 exit_to_menu_button.fill((0, 0, 0, 0))
 exit_to_menu_button_rect = exit_to_menu_button.get_rect(topleft=(width//2.598105548037889, height//1.572052401746725))
 
-# Загрузка спрайтов персонажа
-player_sprites = {}
-attack_sprites = {} 
-directions = ['up', 'down', 'left', 'right']
-try:
-    for dir_name in directions:
-        player_sprites[dir_name] = []
-        attack_sprites[dir_name] = []
-        for i in range(1, 7):  # 6 кадров анимации для каждой стороны
-            # Walk sprites
-            walk_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png', f'{dir_name}{i}.png')
-            img = pygame.image.load(walk_path).convert_alpha()
-            player_sprites[dir_name].append(img)
-            # Attack sprites (12 frames, but we use first 6 for simplicity)
-            attack_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png', f'{dir_name}{i}.png')
-            img_attack = pygame.image.load(attack_path).convert_alpha()
-            attack_sprites[dir_name].append(img_attack)
-except Exception as e:
-    print(f"Ошибка загрузки спрайтов персонажа: {e}. Используем квадраты.")
-    player_sprites = {}
-    attack_sprites = {}
+
+
+ # player_sprites = {}
+# attack_sprites = {} 
+# directions = ['up', 'down', 'left', 'right']
+# try:
+#     for dir_name in directions:
+#         player_sprites[dir_name] = []
+#         attack_sprites[dir_name] = []
+#         for i in range(1, 7):  # 6 кадров анимации для каждой стороны
+#             # Walk sprites
+#             walk_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png', f'{dir_name}{i}.png')
+#             img = pygame.image.load(walk_path).convert_alpha()
+#             player_sprites[dir_name].append(img)
+#             # Attack sprites (12 frames, but we use first 6 for simplicity)
+#             attack_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png', f'{dir_name}{i}.png')
+#             img_attack = pygame.image.load(attack_path).convert_alpha()
+#             attack_sprites[dir_name].append(img_attack)
+# except Exception as e:
+#     print(f"Ошибка загрузки спрайтов персонажа: {e}. Используем квадраты.")
+#     player_sprites = {}
+#     attack_sprites = {}
 
 # Функция для рисования сущностей
 def draw_entity(surface, x, y, color, size=32, sprite=None, frame=0):
@@ -446,8 +536,7 @@ def draw_map(surface, camera_x, camera_y):
                                             y * tileheight - camera_y))
 
 # Simple shapes for entities
-def draw_square(surface, x, y, color, size=32):
-    pygame.draw.rect(surface, color, (x - size//2, y - size//2, size, size))
+
 
 def draw_circle(surface, x, y, color, radius):
     pygame.draw.circle(surface, color, (x, y), radius)
@@ -472,8 +561,7 @@ off_toggles_rect[0].topleft = (1277, 441)
 off_toggles_rect[1].topleft = (1277, 576)
 off_toggles_rect[2].topleft = (1277, 711)
 
-# Переменная для хранения времени начала паузы
-pause_start_time = 0
+
 
 while running:
     clock = pygame.time.Clock()
@@ -641,8 +729,7 @@ while running:
                         else:
                             language = 'ru'
                        
-                      
-                        print(f"Toggle {i} changed to: {toggle_states[i]}")
+
                         # Перерисовываем экран настроек
                         screen.fill(black)
                         # Определяем текущую тему для фона
@@ -700,17 +787,17 @@ while running:
         if not skip:
             if theme == 'dark':
                 if language == 'ru':
-                    image_index = min(int(elapsed / 8000), len(dark_ru_images) - 1)
+                    image_index = min(int(elapsed / 2000), len(dark_ru_images) - 1)
                     screen.blit(dark_ru_images[image_index], (0, 0))
                 else:
-                    image_index = min(int(elapsed / 8000), len(dark_en_images) - 1)
+                    image_index = min(int(elapsed / 2000), len(dark_en_images) - 1)
                     screen.blit(dark_en_images[image_index], (0, 0))
             else:
                 if language == 'ru':
-                    image_index = min(int(elapsed / 8000), len(light_ru_images) - 1)
+                    image_index = min(int(elapsed / 2000), len(light_ru_images) - 1)
                     screen.blit(light_ru_images[image_index], (0, 0))
                 else:
-                    image_index = min(int(elapsed / 8000), len(light_en_images) - 1)
+                    image_index = min(int(elapsed / 2000), len(light_en_images) - 1)
                     screen.blit(light_en_images[image_index], (0, 0))
         else:
             solo_time = False
@@ -742,21 +829,11 @@ while running:
         solo_mob_attacking = True
         solo_mob_last_attacking_time = 0
         current_time = pygame.time.get_ticks()
-        if not solo_player:
-            solo_player = {
-                'x': width // 2,
-                'y': height // 2,
-                'speed': 15,
-                'direction': 'down',
-                'moving': False,
-                'attacking': False,
-                'hp': 100
-            }
     
         # Сбрасываем флаги движения
-        solo_player['moving'] = False
-        new_x = solo_player['x']
-        new_y = solo_player['y']
+        solo_player_class.moving = False
+        new_x = solo_player_class.x
+        new_y = solo_player_class.y
         kill = False
         
         # Обработка перемещения
@@ -779,19 +856,15 @@ while running:
 
         
         # Проверка атаки
-        solo_player['attacking'] = keys[pygame.K_SPACE]
+        solo_player_class.attacking = keys[pygame.K_SPACE]
 
         # if solo_game_active and not in_pause:
             # current_time = pygame.time.get_ticks()
 
         if not solo_mobs:
             for i in range(5):
-                solo_mobs.append({
-                    'x': 250, #width // 4,
-                    'y': 500, #height // 4,
-                    'speed': 1,
-                    'health': 100
-                })
+                solo_mobs.append(Mobs(width//4, height//4, 1, 100))
+                
         if not solo_projectiles:
             if solo_player['attacking']:
                 solo_projectiles.append({
@@ -806,12 +879,12 @@ while running:
         if not solo_mob_projectiles:
             if current_time >= 5000:
                 if solo_mob_attacking:
-                    dx = solo_player['x'] - mob_proj['x']
-                    dy = solo_player['y'] - mob_proj['y']
+                    dx = solo_player['x'] - mob_proj.x
+                    dy = solo_player['y'] - mob_proj.y
                     distance = max(0.1, math.sqrt(dx*dx + dy*dy))
                     solo_mob_projectiles.append({
-                        'x': mob_proj['x'],
-                        'y': mob_proj['y'],
+                        'x': mob_proj.x,
+                        'y': mob_proj.y,
                         'dx': dx / distance,
                         'dy': dy / distance,
                         'speed': 5 
@@ -845,17 +918,8 @@ while running:
 
 
         for mob in solo_mobs:
-            dx = solo_player['x'] - mob['x']
-            dy = solo_player['y'] - mob['y']
-            distance = max(0.1, math.sqrt(dx*dx + dy*dy))
-            dx /= distance
-            dy /= distance
-            mob['x'] += dx * mob['speed']
-            mob['y'] += dy * mob['speed']
-            if mob['health'] > 0:
-                draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))
-            elif mob['health'] <= 0:
-                solo_mobs.remove(mob)
+            mob.reset(width//4, height//4, camera_x, camera_y)
+            mob.moving()
 
 
 
@@ -863,8 +927,8 @@ while running:
         for proj in solo_projectiles:
             draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  
 
-            pr_dx = mob['x'] - proj['x']
-            pr_dy = mob['y'] - proj['y']
+            pr_dx = mobb.x - proj['x']
+            pr_dy = mobb.y - proj['y']
             distance = max(0.1, math.sqrt(pr_dx*pr_dx + pr_dy*pr_dy))
             pr_dx /= distance
             pr_dy /= distance
@@ -872,11 +936,11 @@ while running:
             proj['y'] += pr_dy * proj['speed']
 
             for mob in solo_mobs:
-                player_distance = math.sqrt((proj['x'] - mob['x'])**2 + (proj['y'] - mob['y'])**2)
-                if mob['health'] > 0:
+                player_distance = math.sqrt((proj['x'] - mobb.x)**2 + (proj['y'] - mobb.y)**2)
+                if mob.health > 0:
                     if player_distance <= 30:
                     # if proj['x'] - mob['x'] <= 10 and proj['y'] - mob['y'] <= 10:
-                        mob['health'] -= 34
+                        mob.health -= 34
                         solo_mob_attacking = False
                         kill = True
                 if proj['x'] <= 0 or proj['x'] >= 1920 or proj['y'] <= 0 or proj['y'] >= 1080:
@@ -909,8 +973,7 @@ while running:
                         solo_mob_projectiles.remove(proj)
                         
                     elif solo_player['hp'] <= 0:
-                        for mob in solo_mobs:
-                            solo_mobs.remove(mob)
+                        mobb.reset(width//4, height//4, camera_x, camera_y)
                         solo_time = False
                         solo_game_active = True  # Запускаем соло игру
                         # Сбрасываем камеру и позицию игрока

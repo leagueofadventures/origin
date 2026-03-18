@@ -53,13 +53,10 @@ class Mobs(pygame.sprite.Sprite):
         self.attacking = attacking
 
     def reset(self, x, y, camera_x, camera_y):
-        if self.health > 0:
-            draw_square(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0))
-        elif self.health <= 0:
-            # self.heath = 100
-            self.reset(width//4, height//4, camera_x, camera_y)
-            self.health = 100
-
+        self.x = width //4
+        self.y = width//4
+        self.attacking = False
+        draw_square(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0))
     def moving(self, solo_player_class):
         dx = solo_player_class.x - self.x
         dy = solo_player_class.y - self.y
@@ -84,37 +81,35 @@ class Mobs(pygame.sprite.Sprite):
                     if solo_player_class.health > 0:
                         if distance < 30: 
                             solo_player_class.health -= 34
-                            # solo_mob_projectiles.remove(proj)
+                            solo_mob_projectiles.remove(proj)
                             self.attacking = False   
                         
                     if proj['x'] <= 0 or proj['x'] >= 1920 or proj['y'] <= 0 or proj['y'] >= 1080:
                         solo_mob_projectiles.remove(proj)
                         
                     elif solo_player_class.health <= 0:
-                        self.respawn(solo_time, solo_game_active, camera_x, camera_y, solo_player_class, current_time)
+                        solo_time = False
+                        solo_game_active = True  # Запускаем соло игру
+                        # Сбрасываем камеру и позицию игрока
+                        solo_player_class.x = width // 2
+                        solo_player_class.y = height // 2
+                        current_time = pygame.time.get_ticks()
+                        solo_player_class.direction = 'down'
+                        solo_player_class.hp = 100
+                        # Сбрасываем флаги движения
+                        # self.respawn(solo_time, solo_game_active, solo_player_class, current_time)
 
 
-    def respawn(self, solo_time, solo_game_active, camera_x, camera_y, solo_player_class, current_time, kill):
-        self.reset(width//4, height//4, camera_x, camera_y)
+    def respawn(self, solo_time, solo_game_active, solo_player_class, current_time):
         solo_time = False
         solo_game_active = True  # Запускаем соло игру
         # Сбрасываем камеру и позицию игрока
-        camera_x = 0
-        camera_y = 0
         solo_player_class.x = width // 2
         solo_player_class.y = height // 2
-        self.last_attacking_time = 0
-        self.attacking = True
         current_time = pygame.time.get_ticks()
         solo_player_class.direction = 'down'
-        solo_player_class.attacking = False
         solo_player_class.hp = 100
-            
         # Сбрасываем флаги движения
-        solo_player_class.moving = False
-        new_x = solo_player_class.x
-        new_y = solo_player_class.y
-        kill = False
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, speed, direction, moving, attacking, health): 
@@ -159,21 +154,27 @@ class Player(pygame.sprite.Sprite):
             draw_square(screen, self.x - camera_x, self.y - camera_y, (0, 255, 0))
 
     def attack(self, kill, solo_mobs, mobb, solo_projectiles):
-           
-            for proj in solo_projectiles:
-                proj.reset(camera_x, camera_y)
-                proj.mob_attack(mobb)
-            for mob in solo_mobs:
-                for proj in solo_projectiles:
-                    player_distance = math.sqrt((proj.x - mobb.x)**2 + (proj.y- mobb.y)**2)
-                    if proj.x <= 0 or proj.x >= 1920 or proj.y <= 0 or proj.y >= 1080:
-                         solo_projectiles.remove(proj)
-                if mob.health > 0:
-                    if player_distance <= 30:
-                        mob.health -= 34
-                        mob.attacking = False
-                        kill = True
-               
+            # player_distance = None
+            # for mob in solo_mobs:
+            #     for proj in solo_projectiles:
+        for proj in solo_projectiles:
+            proj.reset(camera_x, camera_y)
+            proj.player_attack(solo_mobs, solo_projectiles)
+            # for mob in solo_mobs:
+            #     for proj in solo_projectiles:
+            #         player_distance = math.sqrt((proj.x - mobb.x)**2 + (proj.y- mobb.y)**2)
+            #         if proj.x <= 0 or proj.x >= 1920 or proj.y <= 0 or proj.y >= 1080:
+            #              solo_projectiles.remove(proj)
+            #         if mob.health > 0:
+            #             if player_distance <= 30:
+            #                 print(mob.health)
+            #                 mob.health -= 34
+            #                 solo_projectiles.remove(proj)
+            #                 mob.attacking = False
+            #                 kill = True
+            #         elif mob.health <= 0:
+            #             mob.reset(width//4, height//4, camera_x, camera_y)
+                    
 
 class Projectiles(pygame.sprite.Sprite):
     def __init__(self, x, y, speed, dx, dy):
@@ -187,14 +188,29 @@ class Projectiles(pygame.sprite.Sprite):
     def reset(self, camera_x, camera_y):
         draw_circle(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0), 6)  
 
-    def mob_attack(self, mobb):
-        self.dx = mobb.x - self.x
-        self.dy = mobb.y - self.y
-        distance = max(0.1, math.sqrt(self.dx*self.dx + self.dy*self.dy))
-        self.dx /= distance
-        self.dy /= distance
-        self.x += self.dx * self.speed
-        self.y += self.dy * self.speed
+    def player_attack(self, solo_mobs, solo_projectiles):
+        for mob in solo_mobs:
+            for proj in solo_projectiles:
+                self.dx = mob.x - proj.x
+                self.dy = mob.y - proj.y
+                distance = max(0.1, math.sqrt(self.dx*self.dx + self.dy*self.dy))
+                self.dx /= distance
+                self.dy /= distance
+                self.x += self.dx * self.speed
+                self.y += self.dy * self.speed
+                player_distance = math.sqrt((proj.x - mob.x)**2 + (proj.y- mob.y)**2)
+                if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
+                        solo_projectiles.remove(proj)
+                if mob.health > 0:
+                    if player_distance <= 30:
+                        print(mob.health)
+                        mob.health -= 34
+                        solo_projectiles.remove(proj)
+                        mob.attacking = False
+                        kill = True
+                elif mob.health <= 0:
+                    mob.reset(width//4, height//4, camera_x, camera_y)
+            
 
     # def player_attack(self)
 
@@ -233,7 +249,7 @@ toggle_states = [False, False, False]
 pause_start_time = 0
 
 #создание соло моба
-mobb = Mobs(width//3, height//4, 1, 100, 0, False,)
+mobb = Mobs(width//4, height//4, 1, 100, 0, False,)
 
 solo_mobs = []
 

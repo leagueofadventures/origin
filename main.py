@@ -53,10 +53,9 @@ class Mobs(pygame.sprite.Sprite):
         self.attacking = attacking
 
     def reset(self, x, y, camera_x, camera_y):
-        self.x = width //4
-        self.y = width//4
-        self.attacking = False
         draw_square(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0))
+
+        
     def moving(self, solo_player_class):
         dx = solo_player_class.x - self.x
         dy = solo_player_class.y - self.y
@@ -154,26 +153,10 @@ class Player(pygame.sprite.Sprite):
             draw_square(screen, self.x - camera_x, self.y - camera_y, (0, 255, 0))
 
     def attack(self, kill, solo_mobs, mobb, solo_projectiles):
-            # player_distance = None
-            # for mob in solo_mobs:
-            #     for proj in solo_projectiles:
         for proj in solo_projectiles:
             proj.reset(camera_x, camera_y)
             proj.player_attack(solo_mobs, solo_projectiles)
-            # for mob in solo_mobs:
-            #     for proj in solo_projectiles:
-            #         player_distance = math.sqrt((proj.x - mobb.x)**2 + (proj.y- mobb.y)**2)
-            #         if proj.x <= 0 or proj.x >= 1920 or proj.y <= 0 or proj.y >= 1080:
-            #              solo_projectiles.remove(proj)
-            #         if mob.health > 0:
-            #             if player_distance <= 30:
-            #                 print(mob.health)
-            #                 mob.health -= 34
-            #                 solo_projectiles.remove(proj)
-            #                 mob.attacking = False
-            #                 kill = True
-            #         elif mob.health <= 0:
-            #             mob.reset(width//4, height//4, camera_x, camera_y)
+
                     
 
 class Projectiles(pygame.sprite.Sprite):
@@ -210,11 +193,6 @@ class Projectiles(pygame.sprite.Sprite):
                         kill = True
                 elif mob.health <= 0:
                     mob.reset(width//4, height//4, camera_x, camera_y)
-            
-
-    # def player_attack(self)
-
-
 
 
 #создание переменных и флагов
@@ -996,7 +974,6 @@ while running:
         for mob in solo_mobs:
             mob.reset(width//4, height//4, camera_x, camera_y)
             mob.moving(solo_player_class)
-
 
 
         solo_player_class.attack(kill, solo_mobs, mobb, solo_projectiles)

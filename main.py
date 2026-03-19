@@ -170,29 +170,35 @@ class Projectiles(pygame.sprite.Sprite):
 
     def reset(self, camera_x, camera_y):
         draw_circle(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0), 6)  
+        
 
     def player_attack(self, solo_mobs, solo_projectiles):
+        remove_bullets = []
         for mob in solo_mobs:
             for proj in solo_projectiles:
-                self.dx = mob.x - proj.x
-                self.dy = mob.y - proj.y
+                self.dx = mob.x - self.x
+                self.dy = mob.y - self.y
                 distance = max(0.1, math.sqrt(self.dx*self.dx + self.dy*self.dy))
                 self.dx /= distance
                 self.dy /= distance
                 self.x += self.dx * self.speed
                 self.y += self.dy * self.speed
-                player_distance = math.sqrt((proj.x - mob.x)**2 + (proj.y- mob.y)**2)
+                player_distance = math.sqrt((self.x - mob.x)**2 + (self.y- mob.y)**2)
                 if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
-                        solo_projectiles.remove(proj)
+                        remove_bullets.append(proj)
+                        break
                 if mob.health > 0:
                     if player_distance <= 30:
                         print(mob.health)
                         mob.health -= 34
-                        solo_projectiles.remove(proj)
+                        remove_bullets.append(proj)
                         mob.attacking = False
-                        kill = True
                 elif mob.health <= 0:
                     mob.reset(width//4, height//4, camera_x, camera_y)
+        for bullet in remove_bullets:
+            if bullet in solo_projectiles:
+                solo_projectiles.remove(bullet)
+        
 
 
 #создание переменных и флагов

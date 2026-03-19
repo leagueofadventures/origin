@@ -60,7 +60,7 @@ class Mobs(pygame.sprite.Sprite):
         dx = solo_player_class.x - self.x
         dy = solo_player_class.y - self.y
         distance = max(0.1, math.sqrt(dx*dx + dy*dy))
-        dx /= distance
+        dx /= distance  
         dy /= distance
         self.x += dx * self.speed
         self.y += dy * self.speed
@@ -81,7 +81,7 @@ class Mobs(pygame.sprite.Sprite):
                         if distance < 30: 
                             solo_player_class.health -= 34
                             solo_mob_projectiles.remove(proj)
-                            self.attacking = False   
+                            self.attacking = False
                         
                     if proj['x'] <= 0 or proj['x'] >= 1920 or proj['y'] <= 0 or proj['y'] >= 1080:
                         solo_mob_projectiles.remove(proj)
@@ -188,7 +188,7 @@ class Projectiles(pygame.sprite.Sprite):
                         remove_bullets.append(proj)
                         break
                 if mob.health > 0:
-                    if player_distance <= 30:
+                    if player_distance < 30:
                         print(mob.health)
                         mob.health -= 34
                         remove_bullets.append(proj)
@@ -198,7 +198,6 @@ class Projectiles(pygame.sprite.Sprite):
         for bullet in remove_bullets:
             if bullet in solo_projectiles:
                 solo_projectiles.remove(bullet)
-        
 
 
 #создание переменных и флагов

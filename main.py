@@ -40,8 +40,8 @@ width, height = info.current_w, info.current_h
 
 skip = False
 
-# skip_time = 0
-# duration = 0
+skip_time = 0
+duration = 0
 def draw_square(surface, x, y, color, size=32):
     pygame.draw.rect(surface, color, (x - size//2, y - size//2, size, size))
 
@@ -192,11 +192,11 @@ class Projectiles(pygame.sprite.Sprite):
                         dx = solo_player_class.x - mob.x
                         dy = solo_player_class.y - mob.y
                         distance = max(0.1, math.sqrt(dx*dx + dy*dy))
-                        self.x += dx * self.speed
-                        self.y += dy * self.speed
+                        proj.x += dx * self.speed
+                        proj.y += dy * self.speed
 
                         mob.attacking = False
-                        distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
+                        distance = math.sqrt((proj.x - solo_player_class.x)**2 + (proj.y - solo_player_class.y)**2)
                         if solo_player_class.health > 0:
                             if distance < 30: 
                                 solo_player_class.health -= 34
@@ -727,8 +727,7 @@ while running:
                             chat_input_text += event.unicode
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_SPACE and skip:
-                global duration
-                duration = pygame.time.get_ticks()
+                duration = pygame.time.get_ticks() - skip_time
                 print(f"duration {duration}")
             
 
@@ -911,7 +910,7 @@ while running:
                     image_index = min(int(elapsed / 2000), len(light_en_images) - 1)
                     screen.blit(light_en_images[image_index], (0, 0))
         else:
-            if skip_time - duration >= 2000:
+            if duration >= 200:
                 solo_time = False
                 solo_game_active = True  # Запускаем соло игру
                 # Сбрасываем камеру и позицию игрока

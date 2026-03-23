@@ -70,6 +70,10 @@ class Mobs(pygame.sprite.Sprite):
         self.y += dy * self.speed
 
     def attack(self, solo_mob_projectiles):
+        for mob in solo_mobs:
+            if mob.attacking and current_time - mob.last_attacking_time >= 5000:
+                solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
+
         for proj in solo_mob_projectiles:
             proj.reset(camera_x, camera_y)
             proj.mob_attack(solo_mobs, current_time, solo_player_class)
@@ -189,11 +193,11 @@ class Projectiles(pygame.sprite.Sprite):
                 if mob.attacking:
                     mob.last_attacking_time = current_time
                     for proj in solo_mob_projectiles:
-                        dx = solo_player_class.x - mob.x
-                        dy = solo_player_class.y - mob.y
+                        dx = solo_player_class.x - proj.x
+                        dy = solo_player_class.y - proj.y
                         distance = max(0.1, math.sqrt(dx*dx + dy*dy))
-                        proj.x += dx * self.speed
-                        proj.y += dy * self.speed
+                        proj.x += dx * proj.speed
+                        proj.y += dy * proj.speed
 
                         mob.attacking = False
                         distance = math.sqrt((proj.x - solo_player_class.x)**2 + (proj.y - solo_player_class.y)**2)
@@ -203,7 +207,7 @@ class Projectiles(pygame.sprite.Sprite):
                                 remove_bullets.append(proj)
                                 mob.attacking = False
                             
-                        if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
+                        if proj.x <= 0 or proj.x >= 1920 or proj.y <= 0 or proj.y >= 1080:
                             remove_bullets.append(proj)
                             
                         elif solo_player_class.health <= 0:

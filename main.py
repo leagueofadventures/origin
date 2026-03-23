@@ -69,10 +69,11 @@ class Mobs(pygame.sprite.Sprite):
         self.x += dx * self.speed
         self.y += dy * self.speed
 
-    def attack(self, solo_mob_projectiles):
+    def attack(self, solo_mob_projectiles, current_time):
         for mob in solo_mobs:
             if mob.attacking and current_time - mob.last_attacking_time >= 5000:
                 solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
+                mob.last_attacking_time = current_time
 
         for proj in solo_mob_projectiles:
             proj.reset(camera_x, camera_y)
@@ -987,8 +988,8 @@ while running:
             mob_proj = mob
 
 
-        if mobb.attacking and current_time - mob_proj.last_attacking_time >= 5000:
-            solo_mob_projectiles.append(Projectiles(mob_proj.x, mob_proj.y, 5))
+        # if mobb.attacking and current_time - mob_proj.last_attacking_time >= 5000:
+        #     solo_mob_projectiles.append(Projectiles(mob_proj.x, mob_proj.y, 5))
 
         # Проверка коллизий
         if not collides_with_objects(new_x, new_y, 32):

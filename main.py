@@ -1026,7 +1026,7 @@ while running:
 
 
         solo_player_class.attack(kill, solo_mobs, mobb, solo_projectiles)
-        mobb.attack(current_time, camera_x, camera_y, solo_player_class, solo_mob_projectiles, kill)
+        mobb.attack(solo_mob_projectiles)
 
     # Мультиплеер
     if multi_play:

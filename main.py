@@ -1,32 +1,32 @@
-            import pygame
-            import pytmx
-            from pytmx import util_pygame
-            import websocket
-            import json
-            import sys
-            import os
-            import argparse
-            import threading
-            import time
-            import math
-            import random
-            # Определяем текущую директорию проекта
-            PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+import pygame
+import pytmx
+from pytmx import util_pygame
+import websocket
+import json
+import sys
+import os
+import argparse
+import threading
+import time
+import math
+import random
+# Определяем текущую директорию проекта
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-            # Парсинг аргументов командной строки
-            parser = argparse.ArgumentParser(description='Игровой клиент')
-            parser.add_argument('--server', '-s', type=str, default='wss://league-of-adventures.onrender.com/ws', help='WebSocket URL сервера')
-            parser.add_argument('--windowed', '-w', action='store_true', help='Оконный режим')
+# Парсинг аргументов командной строки
+parser = argparse.ArgumentParser(description='Игровой клиент')
+parser.add_argument('--server', '-s', type=str, default='wss://league-of-adventures.onrender.com/ws', help='WebSocket URL сервера')
+parser.add_argument('--windowed', '-w', action='store_true', help='Оконный режим')
 
-            args = parser.parse_args()
+args = parser.parse_args()
 
-            SERVER_URL = args.server
+SERVER_URL = args.server
 
-            # Инициализация Pygame
-            pygame.init()
+# Инициализация Pygame
+pygame.init()
 
-            pygame.mixer.init()
-            pygame.display.init()
+pygame.mixer.init()
+pygame.display.init()
 
 # Полноэкранный режим или окно
 if args.windowed:
@@ -70,24 +70,22 @@ class Mobs(pygame.sprite.Sprite):
         self.y += dy * self.speed
 
     def attack(self, solo_mob_projectiles, current_time, solo_mobs):
-        for mob in solo_mobs:
-            if current_time - mob.last_attacking_time >= 1000:
-                mob.attacking = True
-                if mob.attacking:
-                    mob.last_attacking_time = current_time
-                    for proj in solo_mob_projectiles:
-                        proj.reset(camera_x, camera_y)
-                        proj.update()
-                        proj.mob_attack(solo_mobs, current_time, solo_player_class)
+        for proj in solo_mob_projectiles:
+            if current_time - self.last_attacking_time >= 1000:
+                self.attacking = True
+                if self.attacking:
+                    proj.reset(camera_x, camera_y)
+                    proj.update()
+                    proj.mob_attack(solo_mobs, solo_player_class)
+                    self.last_attacking_time = current_time
                         
-            if mob.attacking and current_time - mob.last_attacking_time >= 5000:
+            if self.attacking and current_time - self.last_attacking_time >= 5000:
                 for proj in solo_mob_projectiles:
                     dx = solo_player_class.x - proj.x
                     dy = solo_player_class.y - proj.y
-                    distance = max(0.1, math.sqrt(dx*dx + dy*dy))
 
-                solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5, dx, dy))
-                mob.last_attacking_time = current_time
+                    solo_mob_projectiles.append(Projectiles(self.x, self.y, 5, dx, dy))
+                    self.last_attacking_time = current_time
                         
 
     def respawn(self, solo_time, solo_game_active, solo_player_class, current_time):
@@ -139,42 +137,18 @@ class Player(pygame.sprite.Sprite):
             elif self.moving:
                 sprite = self.sprites[self.direction][frame_index % len(self.sprites[self.direction])]
             else:
-                screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                sprite = self.sprites[self.direction][0]
+            draw_entity(screen, self.x - camera_x, self.y - camera_y, (0, 255, 0), sprite=sprite)
+        else:
+            draw_square(screen, self.x - camera_x, self.y - camera_y, (0, 255, 0))
 
-            # Получение размеров экрана
-            info = pygame.display.Info()
-            width, height = info.current_w, info.current_h
 
-            skip = False
-
-            skip_time = 0
-            duration = 0
-            def draw_square(surface, x, y, color, size=32):
-                pygame.draw.rect(surface, color, (x - size//2, y - size//2, size, size))
-
-            #классы для соло игры
-            class Mobs(pygame.sprite.Sprite):
-                def __init__(self, x, y, speed, health, last_attacking_time, attacking):
-                    super().__init__()
-                    self.x = x
-                    self.y = y
-                    self.speed = speed
-                    self.health = health
-                    self.last_attacking_time = last_attacking_time
-                    self.attacking = attacking
-
-                def reset(self, camera_x, camera_y):
-                    draw_square(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0))
+    def attack(self, kill, solo_mobs, mobb, solo_projectiles):
+        for proj in solo_projectiles:
+            proj.reset(camera_x, camera_y)
+            proj.player_attack(solo_mobs, solo_projectiles)
 
                     
-                def moving(self, solo_player_class):
-                    dx = solo_player_class.x - self.x
-                    dy = solo_player_class.y - self.y
-                    distance = max(0.1, math.sqrt(dx*dx + dy*dy))
-                    dx /= distance  
-                    dy /= distance
-                    self.x += dx * self.speed
-                    self.y += dy * self.speed
 
 class Projectiles(pygame.sprite.Sprite):
     def __init__(self, x, y, speed, dx, dy):
@@ -203,8 +177,8 @@ class Projectiles(pygame.sprite.Sprite):
                 self.y += self.dy * self.speed
                 player_distance = math.sqrt((self.x - mob.x)**2 + (self.y- mob.y)**2)
                 if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
-                        remove_bullets.append(proj)
-                        break
+                    remove_bullets.append(proj)
+                    break
                 if mob.health > 0:
                     if player_distance < 30:
                         print(f"mob health: {mob.health}")
@@ -224,21 +198,20 @@ class Projectiles(pygame.sprite.Sprite):
                 
                 
     def update(self):
-        self.x = self.dx * self.speed
-        self.y = self.dy * self.speed
+        self.x += self.dx * self.speed
+        self.y += self.dy * self.speed
     
-    def mob_attack(self, solo_mobs, current_time, solo_player_class):
+    def mob_attack(self, solo_player_class):
         remove_bullets = []
         
-        distance = math.sqrt((proj.x - solo_player_class.x)**2 + (proj.y - solo_player_class.y)**2)
-        if solo_player_class.health > 0:
-            if distance < 30: 
-                solo_player_class.health -= 34
-                remove_bullets.append(proj)
-                mob.attacking = False
+        distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
+        if solo_player_class.health > 0 and distance < 30:
+            solo_player_class.health -= 34
+            remove_bullets.append(self)
+            mob.attacking = False
             
-        if proj.x <= 0 or proj.x >= 1920 or proj.y <= 0 or proj.y >= 1080:
-            remove_bullets.append(proj)
+        if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
+            remove_bullets.append(self)
             
         if solo_player_class.health <= 0:
             solo_time = False
@@ -251,7 +224,9 @@ class Projectiles(pygame.sprite.Sprite):
             solo_player_class.health = 100
 
 
-            pygame.display.flip()
+        for bullet in remove_bullets:
+            if bullet in solo_mob_projectiles:
+                solo_mob_projectiles.remove(bullet)
 
 
 
@@ -792,194 +767,42 @@ while running:
                     multi_play = True
                     menu = False
                     solo_time = False
-                    solo_mob_last_attacking_time = 0
-                    mobb.attacking = True 
-                    mobb.last_attacking_time = 0
-                    current_time = pygame.time.get_ticks()
-                    
-                
-                    # Сбрасываем флаги движения
-                    solo_player_class.moving = False
-                    new_x = solo_player_class.x
-                    new_y = solo_player_class.y
-                    kill = False
-                    
-                    # Обработка перемещения
-                    if keys[pygame.K_w]:
-                        new_y -= solo_player_class.speed
-                        solo_player_class.direction = 'up'
-                        solo_player_class.moving = True
-                    if keys[pygame.K_s]:
-                        new_y += solo_player_class.speed
-                        solo_player_class.direction = 'down'
-                        solo_player_class.moving = True
-                    if keys[pygame.K_a]:
-                        new_x -= solo_player_class.speed
-                        solo_player_class.direction = 'left'
-                        solo_player_class.moving = True
-                    if keys[pygame.K_d]:
-                        new_x += solo_player_class.speed
-                        solo_player_class.direction = 'right'
-                        solo_player_class.moving = True
+                    solo_game_active = False
+                    # Инициализация позиции для мультиплеера
+                    player_x = width // 2
+                    player_y = height // 2
+                    screen.fill(black)
 
-                    
-                    # Проверка атаки
-                    solo_player_class.attacking = keys[pygame.K_SPACE]
+                # Обработка нажатий на кнопку настроек
+                elif options_button_rect.collidepoint(event.pos):
+                    menu = False
+                    in_options = True
+                    screen.fill(black)
+                    if theme == 'light':
+                        if language == 'ru':
+                            screen.blit(light_ru_setting_png, (0, 0))
+                        else:
+                            screen.blit(light_en_setting_png, (0, 0))
+                        # print(f'theme = {theme}')
+                    elif theme == 'dark':
+                        # print(f'theme = {theme}')
+                        if language == 'ru':
+                            screen.blit(dark_ru_setting_png, (0, 0))
+                        else:
+                            screen.blit(dark_en_setting_png, (0, 0))
+                    # Рисуем переключатели в соответствии с их состояниями
+                    for i in range(3):
+                        if toggle_states[i]:
+                            theme = 'light'
+                            screen.blit(toggles[i], toggles_rect[i])
+                        else:
+                            screen.blit(off_toggles[i], off_toggles_rect[i])
+    
 
-                    if not solo_mobs:
-                        # x = random.randint(100, map_width-200)
-                        # y = random.randint(100, map_height-200)
-                        solo_mobs.append(Mobs(width//4, height//4, 1, 100, 0, False))
-                
-                    if solo_player_class.attacking and current_time - solo_player_class.last_attacking_time >= 1000:
-                        solo_projectiles.append(Projectiles(solo_player_class.x, solo_player_class.y, 5))
-                        solo_player_class.last_attacking_time = current_time
-
-                    for mob in solo_mobs:
-                        mob_proj = mob
-
-
-                    # if mobb.attacking and current_time - mob_proj.last_attacking_time >= 5000:
-                    #     solo_mob_projectiles.append(Projectiles(mob_proj.x, mob_proj.y, 5))
-
-                    # Проверка коллизий
-                    if not collides_with_objects(new_x, new_y, 32):
-                        solo_player_class.x = new_x
-                        solo_player_class.y = new_y
-                    
-                    # Обновление камеры
-                    camera_x = max(0, min(solo_player_class.x - (width // 2), map_width - width))
-                    camera_y = max(0, min(solo_player_class.y - (height // 2), map_height - height))
-                    
-                    # Отрисовка
-                    screen.fill((0, 0, 0))
-                    draw_map(screen, camera_x, camera_y)
-                    
-                    # Отрисовка персонажа
-                    solo_player_class.reset(camera_x, camera_y, frame_index)
-
-
-
-                    for mob in solo_mobs:
-                        mob.reset(camera_x, camera_y)
-                        mob.moving(solo_player_class)
-                        mobb.attack(solo_mob_projectiles, current_time)
-
-                
-                    solo_player_class.attack(kill, solo_mobs, mobb, solo_projectiles)
-                    # mobb.attack(solo_mob_projectiles, current_time)
-
-                # Мультиплеер
-                if multi_play:
-                    if cid and cid in players:
-                        player_x = players[cid]['x']
-                        player_y = players[cid]['y']
-                        camera_x = max(0, min(player_x - (width // 2), map_width - width))
-                        camera_y = max(0, min(player_y - (height // 2), map_height - height))
-
-                        #отрисовка карты
-                        draw_map(screen, camera_x, camera_y)
-
-                    
-                        if cid:
-                            player_dir = players[cid].get('direction', 'down')
-                            is_moving = players[cid].get('moving', False)
-                            is_attacking = players[cid].get('attacking', False)
-                            if player_sprites and player_dir in player_sprites:
-                                if is_attacking and attack_sprites and player_dir in attack_sprites:
-                                    sprite = attack_sprites[player_dir][frame_index % len(attack_sprites[player_dir])]
-                                elif is_moving:
-                                    sprite = player_sprites[player_dir][frame_index % len(player_sprites[player_dir])]
-                                else:
-                                    
-                                    sprite = player_sprites[player_dir][0]
-                                draw_entity(screen, player_x - camera_x, player_y - camera_y, (0, 255, 0), sprite=sprite)
-                            else:
-                                draw_square(screen, player_x - camera_x, player_y - camera_y, (0, 255, 0))  # Green for self
-
-                        # Отрисовка игроков
-                        for pid, pos in players.items():
-                            if pid != cid:
-                                player_dir = pos.get('direction', 'down')
-                                is_moving = pos.get('moving', False)
-                                is_attacking = pos.get('attacking', False)
-                                if player_sprites and player_dir in player_sprites:
-                                    if is_attacking and attack_sprites and player_dir in attack_sprites:
-                                        sprite = attack_sprites[player_dir][frame_index % len(attack_sprites[player_dir])]
-                                    elif is_moving:
-                                        sprite = player_sprites[player_dir][frame_index % len(player_sprites[player_dir])]
-                                    else:
-                                        sprite = player_sprites[player_dir][0]
-                                    draw_entity(screen, pos['x'] - camera_x, pos['y'] - camera_y, (0, 0, 255), sprite=sprite)
-                                else:
-                                    draw_square(screen, pos['x'] - camera_x, pos['y'] - camera_y, (0, 0, 255))  # Blue for others
-
-                        # Отрисовка мобов
-                        for mid, mob in mobs.items():
-                            draw_square(screen, mob['x'] - camera_x, mob['y'] - camera_y, (255, 0, 0))  # Red for mobs
-
-                        # Отрисовка снарядов            
-                        for pid, proj in projectiles.items():
-                            draw_circle(screen, proj['x'] - camera_x, proj['y'] - camera_y, (255, 0, 0), 6)  # Red circle for projectiles
-
-                        # Отрисовка чата
-                        if chat_input_mode:
-                            rect_width = 400
-                            rect_height = 250 + (30 if chat_input_mode else 0)
-                            rect_x = 10 
-                            rect_y = height - rect_height - 10
-                            chat_surface = pygame.Surface((rect_width, rect_height), pygame.SRCALPHA)
-                            chat_surface.fill((0, 0, 0, 128))
-                            screen.blit(chat_surface, (rect_x, rect_y))
-                            y_offset = rect_y + 10
-                            for msg in client_chat_history[-8:]:
-                                text = font.render(msg['message'], True, (255, 255, 255))
-                                if y_offset + text.get_height() > rect_y + rect_height - (30 if chat_input_mode else 0):
-                                    break
-                                screen.blit(text, (rect_x + 10, y_offset))
-                                y_offset += 25
-                            if chat_input_mode:
-                                input_y = rect_y + rect_height - 30
-                                input_surface = pygame.Surface((rect_width, 30), pygame.SRCALPHA)
-                                input_surface.fill((0, 0, 0, 128))
-                                screen.blit(input_surface, (rect_x, input_y))
-                                input_text = font.render("> " + chat_input_text, True, (255, 255, 255))
-                                screen.blit(input_text, (rect_x + 10, input_y + 5))
-                        
-                        pygame.display.flip()
-
-                if not chat_input_mode and not menu and not solo_time and not solo_game_active and not in_options and not in_pause and not in_quit and multi_play:
-                    # Отправляем ввод игрока
-                    keys = pygame.key.get_pressed()
-                    inputs = {
-                        'type': 'input',
-                        'left': keys[pygame.K_a],
-                        'right': keys[pygame.K_d],
-                        'up': keys[pygame.K_w],
-                        'down': keys[pygame.K_s],
-                        'attack': keys[pygame.K_SPACE]
-                    }
-                    if ws and ws.sock and ws.sock.connected:
-                        try:
-                            ws.send(json.dumps(inputs))
-                        except Exception as e:
-                            print(f"Send error: {e}")
-
-                # Отрисовка главного меню
-                if menu:
-                    screen.fill((250, 250, 250))
-                    if language == 'ru':
-                        screen.blit(menu_ru_png, (0, 0))
-                    else:
-                        screen.blit(menu_en_png, (0, 0))
-                    screen.blit(multi_play_button, multi_play_button_rect)
-                    screen.blit(options_button, options_button_rect)
-                    screen.blit(quit_button, quit_button_rect)
-                    screen.blit(solo_play_button, solo_play_button_rect)
-                    pygame.display.flip()
-                
-                # Отрисовка меню выхода
-                if in_quit:
+                # Обработка нажатий на кнопку выхода 
+                elif quit_button_rect.collidepoint(event.pos):
+                    in_quit = True
+                    menu = False
                     if theme == 'dark':
                         if language == 'ru':
                             screen.blit(dark_ru_quit_png, (0, 0))
@@ -992,7 +815,6 @@ while running:
                             screen.blit(light_en_quit_png, (0, 0))
                     screen.blit(quit_yes_button, quit_yes_button_rect)
                     screen.blit(quit_no_button, quit_no_button_rect)
-                pygame.display.flip()
 
             if in_pause:
                 if exit_to_menu_button_rect.collidepoint(event.pos):
@@ -1163,8 +985,13 @@ while running:
         if solo_player_class.attacking and current_time - solo_player_class.last_attacking_time >= 1000:
             solo_projectiles.append(Projectiles(solo_player_class.x, solo_player_class.y, 5, 0, 0))
             solo_player_class.last_attacking_time = current_time
+        
+        
 
         for mob in solo_mobs:
+            if mob.attacking and current_time - mob.last_attacking_time >= 1000:
+                solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5, 0, 0))
+                mob.last_attacking_time = current_time
             mob_proj = mob
 
         # Проверка коллизий

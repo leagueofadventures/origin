@@ -23,7 +23,7 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Разрешаем любые запросы для упрощения
+		return true
 	},
 }
 
@@ -53,6 +53,7 @@ type Mob struct {
 	Y          float64   `json:"y"`
 	Direction  string    `json:"direction"`
 	Health     int       `json:"health"`
+	LastAttack time.Time `json:"-"`
 	LastUpdate time.Time `json:"-"`
 }
 
@@ -63,6 +64,7 @@ type Projectile struct {
 	DX         float64   `json:"dx"`
 	DY         float64   `json:"dy"`
 	OwnerID    string    `json:"owner_id"`
+	OwnerType  string    `json:"owner_type"` // "player" или "mob"
 	LastUpdate time.Time `json:"-"`
 }
 
@@ -174,8 +176,23 @@ func initMobs() {
 			Y:          rand.Float64() * MAP_HEIGHT,
 			Direction:  "down",
 			Health:     100,
+			LastAttack: time.Now(),
 			LastUpdate: time.Now(),
 		}
+	}
+}
+
+func spawnRandomMob() {
+	id := fmt.Sprintf("mob_%d", nextMobID)
+	nextMobID++
+	mobs[id] = &Mob{
+		ID:         id,
+		X:          rand.Float64() * MAP_WIDTH,
+		Y:          rand.Float64() * MAP_HEIGHT,
+		Direction:  "down",
+		Health:     100,
+		LastAttack: time.Now(),
+		LastUpdate: time.Now(),
 	}
 }
 
@@ -283,7 +300,7 @@ func handleCommand(cid string, commandStr string, isAdmin bool) map[string]strin
 				return map[string]string{"error": "Неверное количество секунд."}
 			}
 			log.Printf("Сервер перезапустится через %d секунд...", seconds)
-			// TODO: Реализовать логику перезапуска
+			// TODO: реализовать перезапуск
 			return map[string]string{"message": fmt.Sprintf("Сервер перезапустится через %d секунд.", seconds)}
 		}
 	case "/stop":
@@ -295,11 +312,10 @@ func handleCommand(cid string, commandStr string, isAdmin bool) map[string]strin
 				return map[string]string{"error": "Неверное количество секунд."}
 			}
 			log.Printf("Сервер остановится через %d секунд...", seconds)
-			// TODO: Реализовать логику остановки
+			// TODO: реализовать остановку
 			return map[string]string{"message": fmt.Sprintf("Сервер остановится через %d секунд.", seconds)}
 		}
 	case "/stats":
-
 		uptime := time.Since(startTime).Seconds()
 		return map[string]string{"message": fmt.Sprintf("Статистика сервера:\nИгроки онлайн: %d\nВсего клиентов: %d\nВремя работы: %.0f секунд", len(players), len(connections), uptime)}
 
@@ -381,7 +397,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Игрок подключен: %s (%s, админ: %t)", cid, ip, isAdmin)
 
-	// Отправка статуса клиенту
 	statusMsg := ServerMessage{Type: "status", Status: "ok", CID: cid}
 	if isAdmin {
 		statusMsg.Status = "admin"
@@ -425,7 +440,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		case "input":
-			// Перемещение
 			dx := 0.0
 			dy := 0.0
 			if msg.Left {
@@ -460,7 +474,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			player.Attacking = msg.Attack
 			player.LastUpdate = time.Now()
 
-			// Атака
+			// Атака игрока
 			if msg.Attack {
 				if time.Since(player.LastAttack) > 600*time.Millisecond {
 					projID := fmt.Sprintf("proj_%d", nextProjID)
@@ -484,6 +498,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 						DX:         dirX * PROJECTILE_SPEED,
 						DY:         dirY * PROJECTILE_SPEED,
 						OwnerID:    cid,
+						OwnerType:  "player",
 						LastUpdate: time.Now(),
 					}
 					player.LastAttack = time.Now()
@@ -548,7 +563,7 @@ func respawnPlayer(player *Player) {
 }
 
 func gameLoop() {
-	ticker := time.NewTicker(16 * time.Millisecond) // Примерно 60 FPS
+	ticker := time.NewTicker(16 * time.Millisecond)
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -556,8 +571,9 @@ func gameLoop() {
 
 		currentTime := time.Now()
 
-		// Обновление позиций моба
+		// Обновление позиций мобов и их атака
 		for _, mob := range mobs {
+			// Находим ближайшего игрока
 			var nearestPlayer *Player
 			minDistance := math.Inf(1)
 			for _, player := range players {
@@ -567,6 +583,7 @@ func gameLoop() {
 					nearestPlayer = player
 				}
 			}
+			// Движение к ближайшему игроку
 			if nearestPlayer != nil && minDistance > 0 {
 				dx := nearestPlayer.X - mob.X
 				dy := nearestPlayer.Y - mob.Y
@@ -576,35 +593,62 @@ func gameLoop() {
 				mob.Y = math.Max(0, math.Min(mob.Y, MAP_HEIGHT))
 				mob.LastUpdate = currentTime
 			}
+
+			// Атака моба
+			if nearestPlayer != nil && minDistance < 200 {
+				if time.Since(mob.LastAttack) > 1000*time.Millisecond {
+					dx := nearestPlayer.X - mob.X
+					dy := nearestPlayer.Y - mob.Y
+					distance := math.Sqrt(dx*dx + dy*dy)
+					if distance > 0 {
+						dx /= distance
+						dy /= distance
+					}
+					projID := fmt.Sprintf("mob_proj_%d", nextProjID)
+					nextProjID++
+					projectiles[projID] = &Projectile{
+						ID:         projID,
+						X:          mob.X,
+						Y:          mob.Y,
+						DX:         dx * PROJECTILE_SPEED,
+						DY:         dy * PROJECTILE_SPEED,
+						OwnerID:    mob.ID,
+						OwnerType:  "mob",
+						LastUpdate: currentTime,
+					}
+					mob.LastAttack = currentTime
+				}
+			}
 		}
 
 		// Обновление снарядов
 		for id, proj := range projectiles {
 			proj.X += proj.DX
 			proj.Y += proj.DY
-			proj.LastUpdate = currentTime
 			if proj.X < 0 || proj.X > MAP_WIDTH || proj.Y < 0 || proj.Y > MAP_HEIGHT {
 				delete(projectiles, id)
 			}
 		}
 
-		// Проверка столкновений снарядов с мобами и игроками
+		// Столкновения снарядов
 		for projID, proj := range projectiles {
-			for mobID, mob := range mobs {
-				if math.Abs(proj.X-mob.X) < 32 && math.Abs(proj.Y-mob.Y) < 32 {
-					mob.Health -= 100
-					delete(projectiles, projID)
-					if mob.Health <= 0 {
-						delete(mobs, mobID)
-						// респаунем нового моба
-						spawnRandomMob()
+			// Снаряды игроков -> мобы
+			if proj.OwnerType == "player" {
+				for mobID, mob := range mobs {
+					if math.Abs(proj.X-mob.X) < 32 && math.Abs(proj.Y-mob.Y) < 32 {
+						mob.Health -= 100
+						delete(projectiles, projID)
+						if mob.Health <= 0 {
+							delete(mobs, mobID)
+							spawnRandomMob()
+						}
+						break
 					}
-					break
 				}
 			}
-
-			for playerID, player := range players {
-				if proj.OwnerID != playerID {
+			// Снаряды мобов -> игроки
+			if proj.OwnerType == "mob" {
+				for playerID, player := range players {
 					if math.Abs(proj.X-player.X) < 32 && math.Abs(proj.Y-player.Y) < 32 {
 						player.Health -= 20
 						player.Hurt = true
@@ -621,7 +665,7 @@ func gameLoop() {
 			}
 		}
 
-		// Готовим игровое состояние
+		// Подготовка состояния для клиентов
 		playersState := make(map[string]interface{})
 		for id, p := range players {
 			playersState[id] = map[string]interface{}{
@@ -666,7 +710,7 @@ func gameLoop() {
 			ChatHistory: chatHistory[len(chatHistory)-min(10, len(chatHistory)):],
 		}
 
-		// Рассылаем всем клиентам
+		// Рассылка всем клиентам
 		for _, conn := range connections {
 			conn.WriteJSON(stateMsg)
 		}
@@ -680,19 +724,6 @@ func min(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func spawnRandomMob() {
-	id := fmt.Sprintf("mob_%d", nextMobID)
-	nextMobID++
-	mobs[id] = &Mob{
-		ID:         id,
-		X:          rand.Float64() * MAP_WIDTH,
-		Y:          rand.Float64() * MAP_HEIGHT,
-		Direction:  "down",
-		Health:     100,
-		LastUpdate: time.Now(),
-	}
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -719,7 +750,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	// Проверка, существует ли пользователь в БД
 	_, err = getUser(req.Username)
 	if err == nil {
 		log.Printf("Пользователь %s уже существует", req.Username)
@@ -731,7 +761,6 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Вставка нового пользователя в БД
 	_, err = db.Exec("INSERT INTO users (username, password, is_admin) VALUES ($1, $2, $3)", req.Username, req.Password, false)
 	if err != nil {
 		log.Printf("Ошибка вставки пользователя: %v", err)
@@ -830,7 +859,6 @@ func loadUsers() {
 }
 
 func saveUsers() {
-	// Insert default admin if not exists
 	_, err := db.Exec("INSERT INTO admins (username) VALUES ('admin') ON CONFLICT (username) DO NOTHING")
 	if err != nil {
 		log.Println("Ошибка вставки администратора по умолчанию:", err)
@@ -918,7 +946,6 @@ func checkUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Получаем актуальную версию из базы данных
 	latestVersion := getLatestVersion()
 
 	response := UpdateResponse{
@@ -938,23 +965,19 @@ func downloadUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Проверяем существование файла
 	fileInfo, err := os.Stat(UPDATE_ZIP_PATH)
 	if os.IsNotExist(err) {
 		http.Error(w, "Файл обновления не найден", http.StatusNotFound)
 		return
 	}
 
-	// Получаем текущую версию для имени файла
 	latestVersion := getLatestVersion()
 
-	// Устанавливаем правильные заголовки
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"update_%s.zip\"", latestVersion))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 	w.Header().Set("Cache-Control", "no-cache")
 
-	// Открываем и отправляем файл
 	file, err := os.Open(UPDATE_ZIP_PATH)
 	if err != nil {
 		log.Printf("Ошибка открытия файла обновления: %v", err)
@@ -963,7 +986,6 @@ func downloadUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// Используем буферизованную отправку
 	buf := make([]byte, CHUNK_SIZE)
 	_, err = io.CopyBuffer(w, file, buf)
 	if err != nil {
@@ -977,7 +999,6 @@ func adminBackupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Проверка авторизации администратора
 	token := r.Header.Get("Authorization")
 	if token == "" {
 		http.Error(w, "Токен не предоставлен", http.StatusUnauthorized)
@@ -1012,7 +1033,6 @@ func adminBackupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Создание бэкапа базы данных
 	backupData := map[string]interface{}{
 		"users":     loadRegistered(),
 		"admins":    loadAdmins(),
@@ -1026,7 +1046,6 @@ func adminBackupHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func createTables() {
-	// Создание таблицы пользователей
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS users (
 			id SERIAL PRIMARY KEY,
@@ -1039,7 +1058,6 @@ func createTables() {
 		log.Fatal("Ошибка создания таблицы users:", err)
 	}
 
-	// Создание таблицы администраторов
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS admins (
 			id SERIAL PRIMARY KEY,
@@ -1050,7 +1068,6 @@ func createTables() {
 		log.Fatal("Ошибка создания таблицы admins:", err)
 	}
 
-	// Создание таблицы заблокированных пользователей
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS banned (
 			id SERIAL PRIMARY KEY,
@@ -1061,7 +1078,6 @@ func createTables() {
 		log.Fatal("Ошибка создания таблицы banned:", err)
 	}
 
-	// Создание таблицы игроков (для сохранения прогресса)
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS players (
 			id VARCHAR(36) PRIMARY KEY,
@@ -1081,7 +1097,6 @@ func createTables() {
 		log.Fatal("Ошибка создания таблицы players:", err)
 	}
 
-	// Создание таблицы настроек приложения
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS app_settings (
 			key VARCHAR(50) PRIMARY KEY,
@@ -1093,7 +1108,6 @@ func createTables() {
 		log.Fatal("Ошибка создания таблицы app_settings:", err)
 	}
 
-	// Инициализация версии по умолчанию
 	_, err = db.Exec(`
 		INSERT INTO app_settings (key, value) 
 		VALUES ('latest_version', '1.0.0') 
@@ -1109,13 +1123,11 @@ func createTables() {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	// Инициализация JWT секрета
 	if len(jwtSecret) == 0 {
 		jwtSecret = []byte("default-secret-key-change-in-production")
 		log.Println("ВНИМАНИЕ: Используется стандартный JWT секрет. Установите JWT_SECRET в переменных окружения.")
 	}
 
-	// Подключение к PostgreSQL
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL не установлена")
@@ -1127,21 +1139,17 @@ func main() {
 	}
 	defer db.Close()
 
-	// Проверка подключения к БД
 	err = db.Ping()
 	if err != nil {
 		log.Fatal("Ошибка ping к БД:", err)
 	}
 
-	// Настройка пула соединений
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(25)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
-	// Создание таблиц
 	createTables()
 
-	// Загрузка текущей версии
 	currentVersion = getLatestVersion()
 	log.Printf("Текущая версия сервера: %s", currentVersion)
 
@@ -1160,7 +1168,6 @@ func main() {
 	http.HandleFunc("/download_update", downloadUpdateHandler)
 	http.HandleFunc("/admin/backup", adminBackupHandler)
 
-	// Статический файл для тестирования
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			w.Header().Set("Content-Type", "text/html")

@@ -671,7 +671,7 @@ off_toggles_rect[2].topleft = (1277, 711)
 
 while running:
     clock = pygame.time.Clock()
-    clock.tick(60)
+    clock.tick(60)                                  
 
     # обновление анимаций
     animation_frame += 0.2
@@ -735,7 +735,16 @@ while running:
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_SPACE and skip:
                 duration = pygame.time.get_ticks() - skip_time
-                print(f"duration {duration}")
+                if solo_time and skip and duration > 200:
+                    solo_time = False
+                    in_pause = False
+                    solo_game_active = True  # Запускаем соло игру
+                    # Сбрасываем камеру и позицию игрока
+                    camera_x = 0
+                    camera_y = 0
+                    solo_player_class.x = width // 2
+                    solo_player_class.y = height // 2
+                    print(f"duration {duration}")
             
 
         if event.type == pygame.MOUSEBUTTONDOWN: 
@@ -916,15 +925,18 @@ while running:
                 else:
                     image_index = min(int(elapsed / 2000), len(light_en_images) - 1)
                     screen.blit(light_en_images[image_index], (0, 0))
-        else:
-            if duration >= 200:
-                solo_time = False
-                solo_game_active = True  # Запускаем соло игру
-                # Сбрасываем камеру и позицию игрока
-                camera_x = 0
-                camera_y = 0
-                solo_player_class.x = width // 2
-                solo_player_class.y = height // 2
+        # else:
+        #     duration = pygame.time.get_ticks() - skip_time
+        #     print(f"duration {duration}")
+        #     if duration >= 200:
+        #         solo_time = False
+        #         in_pause = False
+        #         solo_game_active = True  # Запускаем соло игру
+        #         # Сбрасываем камеру и позицию игрока
+        #         camera_x = 0
+        #         camera_y = 0
+        #         solo_player_class.x = width // 2
+        #         solo_player_class.y = height // 2
         
         # Проверяем, закончилась ли катсцена
         if elapsed > change_time * 2 + (len(light_ru_images) * 8000 if theme == 'light' else len(dark_ru_images) * 8000) or elapsed > change_time * 2 + (len(light_en_images) * 8000 if theme == 'light' else len(dark_en_images) * 8000):

@@ -84,8 +84,8 @@ class Mobs(pygame.sprite.Sprite):
         solo_time = False
         solo_game_active = True  # Запускаем соло игру
         # Сбрасываем камеру и позицию игрока
-        solo_player_class.x = width // 2
-        solo_player_class.y = height // 2
+        solo_player_class.x = map_width-(map_width//3)
+        solo_player_class.y = map_height-(map_height//3)
         current_time = pygame.time.get_ticks()
         solo_player_class.direction = 'down'
         solo_player_class.hp = 100
@@ -259,7 +259,7 @@ mobb = Mobs(width//4, height//4, 1, 100, 0, False,)
 solo_mobs = []
 
 # Загрузка спрайтов персонажа
-solo_player_class = Player(width//2, height//2, 15, 'down', False, False, 100, 0)
+# solo_player_class = Player(map_width-(map_width//2), height//2, 15, 'down', False, False, 100, 0)
 
 # projectile = Projectiles(solo_player_class.x, solo_player_class.y, 5)
 
@@ -547,6 +547,8 @@ camera_x = 0
 camera_y = 0
 camera_speed = 10
 
+solo_player_class = Player(map_width-(map_width//3), map_height-(map_height//3), 15, 'down', False, False, 100, 0)
+
 # Позиция персонажа
 player_x = width // 2
 player_y = height - 100  # Спавн еще ниже, чтобы избежать застревания в текстурах
@@ -734,8 +736,8 @@ while running:
                     # Сбрасываем камеру и позицию игрока
                     camera_x = 0
                     camera_y = 0
-                    solo_player_class.x = width // 2
-                    solo_player_class.y = height // 2
+                    solo_player_class.x = map_width-(map_width//3)
+                    solo_player_class.y = map_height-(map_height//3)
                     print(f"duration {duration}")
             
 
@@ -937,8 +939,8 @@ while running:
             # Сбрасываем камеру и позицию игрока
             camera_x = 0
             camera_y = 0
-            solo_player_class.x = width // 2
-            solo_player_class.y = height // 2
+            solo_player_class.x = map_width-(map_width//3)
+            solo_player_class.y = map_height-(map_height//3)
 
 
         pygame.display.flip()

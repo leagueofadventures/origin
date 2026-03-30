@@ -480,11 +480,11 @@ quit_button.fill((0, 0, 0, 0))
 quit_button_rect = quit_button.get_rect(topleft=(width//2.313253012048193, height//1.173913043478261))
 
 quit_yes_button = pygame.Surface((width//12, height//16.61538461538462), pygame.SRCALPHA)
-quit_yes_button.fill((0, 0, 0, 0))
+quit_yes_button.fill((0, 0, 0, 250))
 quit_yes_button_rect = quit_yes_button.get_rect(topleft=(width//2.445859872611465, height//1.830508474576271))
 
 quit_no_button = pygame.Surface((width//12, height//16.61538461538462), pygame.SRCALPHA)
-quit_no_button.fill((0, 0, 0, 0))
+quit_no_button.fill((0, 0, 0, 250))
 quit_no_button_rect = quit_no_button.get_rect(topleft=(width//1.969230769230769, height//1.830508474576271))
 
 continue_solo_button = pygame.Surface((width//4.085106382978723, height//8.307692307692308), pygame.SRCALPHA)
@@ -749,7 +749,7 @@ while running:
 
         if event.type == pygame.MOUSEBUTTONDOWN: 
             x, y = event.pos
-            # print(f"Click at: {x}, {y}")
+            print(f"Click at: {x}, {y}")
             
             if menu:    
                 if solo_play_button_rect.collidepoint(x, y):

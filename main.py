@@ -70,17 +70,17 @@ class Mobs(pygame.sprite.Sprite):
         self.y += dy * self.speed
 
     def attack(self, solo_mob_projectiles, current_time, solo_mobs, solo_player_class):
-        for proj in solo_mob_projectiles:
-            proj.reset(camera_x, camera_y)
-            proj.mob_attack(solo_player_class)
-            # if current_time - self.last_attacking_time >= 1000:
-            #     self.attacking = True
-            #     if self.attacking:
-            #         proj.reset(camera_x, camera_y)
-            #         proj.mob_attack(solo_mobs, solo_player_class)
-            #         self.last_attacking_time = current_time
-                        
-                        
+        # for proj in solo_mob_projectiles:
+            # print(f"current time {current_time}")
+            # print(f"last_attacking_time {self.last_attacking_time}")
+            # print(f"time {current_time - self.last_attacking_time}")
+        if current_time - self.last_attacking_time >= 1000:
+            solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
+            print(f"yes time {current_time - self.last_attacking_time}")
+            # proj.reset(camera_x, camera_y)
+            # proj.mob_attack(solo_player_class, current_time)
+            self.last_attacking_time = current_time
+                    
 
     def respawn(self, solo_time, solo_game_active, solo_player_class, current_time):
         solo_time = False
@@ -89,7 +89,7 @@ class Mobs(pygame.sprite.Sprite):
         solo_player_class.x = map_width-(map_width//3)
         solo_player_class.y = map_height-(map_height//3)
         current_time = pygame.time.get_ticks()
-        solo_player_class.direction = 'down'
+        solo_player_class.direction = 'down' 
         solo_player_class.hp = 100
         # Сбрасываем флаги движения
 
@@ -189,7 +189,7 @@ class Projectiles(pygame.sprite.Sprite):
                 solo_mobs.remove(mob)
                 
     
-    def mob_attack(self, solo_player_class):
+    def mob_attack(self, solo_player_class, current_time):
         remove_bullets = []
 
         for proj in solo_mob_projectiles:
@@ -203,6 +203,8 @@ class Projectiles(pygame.sprite.Sprite):
             distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
             if solo_player_class.health > 0 and distance < 30:
                 solo_player_class.health -= 34
+                mob.last_attacking_time = current_time
+                print(f"self.health = {solo_player_class.health}")
                 remove_bullets.append(proj)
                 mob.attacking = False
                 
@@ -214,8 +216,8 @@ class Projectiles(pygame.sprite.Sprite):
                 solo_time = False
                 solo_game_active = True  # Запускаем соло игру
                 # Сбрасываем камеру и позицию игрока
-                solo_player_class.x = width // 2
-                solo_player_class.y = height // 2
+                solo_player_class.x = map_width-(map_width//3)
+                solo_player_class.y = map_height-(map_height//3)
                 current_time = pygame.time.get_ticks()
                 solo_player_class.direction = 'down'
                 solo_player_class.health = 100
@@ -477,11 +479,11 @@ quit_button.fill((0, 0, 0, 0))
 quit_button_rect = quit_button.get_rect(topleft=(width//2.313253012048193, height//1.173913043478261))
 
 quit_yes_button = pygame.Surface((width//12, height//16.61538461538462), pygame.SRCALPHA)
-quit_yes_button.fill((0, 0, 0, 250))
+quit_yes_button.fill((0, 0, 0, 0))
 quit_yes_button_rect = quit_yes_button.get_rect(topleft=(width//2.445859872611465, height//1.830508474576271))
 
 quit_no_button = pygame.Surface((width//12, height//16.61538461538462), pygame.SRCALPHA)
-quit_no_button.fill((0, 0, 0, 250))
+quit_no_button.fill((0, 0, 0, 0))
 quit_no_button_rect = quit_no_button.get_rect(topleft=(width//1.969230769230769, height//1.830508474576271))
 
 continue_solo_button = pygame.Surface((width//4.085106382978723, height//8.307692307692308), pygame.SRCALPHA)
@@ -1003,8 +1005,7 @@ while running:
 
         for mob in solo_mobs:
             # if mob.attacking and current_time - mob.last_attacking_time >= 1000:
-            solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
-            mob.last_attacking_time = current_time
+            # solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
             mob_proj = mob
 
         # Проверка коллизий
@@ -1029,6 +1030,9 @@ while running:
             mob.reset(camera_x, camera_y)
             mob.moving(solo_player_class)
             mob.attack(solo_mob_projectiles, current_time, solo_mobs, solo_player_class)
+        for proj in solo_mob_projectiles:
+            proj.reset(camera_x, camera_y)
+            proj.mob_attack(solo_player_class, current_time)
 
 
 

@@ -42,6 +42,9 @@ skip = False
 
 skip_time = 0
 duration = 0
+
+
+clock = pygame.time.Clock()
 def draw_square(surface, x, y, color, size=32):
     pygame.draw.rect(surface, color, (x - size//2, y - size//2, size, size))
 
@@ -671,8 +674,7 @@ off_toggles_rect[2].topleft = (1277, 711)
 
 
 while running:
-    clock = pygame.time.Clock()
-    clock.tick(60)                                  
+                               
 
     # обновление анимаций
     animation_frame += 0.2
@@ -1162,6 +1164,12 @@ while running:
                 screen.blit(light_en_quit_png, (0, 0))
         screen.blit(quit_yes_button, quit_yes_button_rect)
         screen.blit(quit_no_button, quit_no_button_rect)
+
+
+
+
+
+    clock.tick(60)   
     pygame.display.flip()
 
 if ws:

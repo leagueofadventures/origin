@@ -118,11 +118,11 @@ class Player(pygame.sprite.Sprite):
             self.attack_sprites[dir_name] = []
 
             for i in range(1, 7):  # 6 кадров анимации для каждой стороны
-                # Walk sprites
+                
                 walk_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png', f'{dir_name}{i}.png')
                 img = pygame.image.load(walk_path).convert_alpha()
                 self.sprites[dir_name].append(img)
-                # Attack sprites (12 frames, but we use first 6 for simplicity)
+                
                 attack_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png', f'{dir_name}{i}.png')
                 img_attack = pygame.image.load(attack_path).convert_alpha()
                 self.attack_sprites[dir_name].append(img_attack)

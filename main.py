@@ -42,6 +42,9 @@ skip = False
 
 skip_time = 0
 duration = 0
+
+fight = False
+
 def draw_square(surface, x, y, color, size=32):
     pygame.draw.rect(surface, color, (x - size//2, y - size//2, size, size))
 
@@ -69,16 +72,11 @@ class Mobs(pygame.sprite.Sprite):
         self.x += dx * self.speed
         self.y += dy * self.speed
 
-    def attack(self, solo_mob_projectiles, current_time, solo_mobs, solo_player_class):
-        # for proj in solo_mob_projectiles:
-            # print(f"current time {current_time}")
-            # print(f"last_attacking_time {self.last_attacking_time}")
-            # print(f"time {current_time - self.last_attacking_time}")
-        if current_time - self.last_attacking_time >= 1000:
+    def attack(self, solo_mob_projectiles, current_time, solo_mobs, solo_player_class, fight):
+        if current_time - self.last_attacking_time >= 1000 and not fight:
+            fight = True
             solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
-            print(f"yes time {current_time - self.last_attacking_time}")
-            # proj.reset(camera_x, camera_y)
-            # proj.mob_attack(solo_player_class, current_time)
+            print(f"fight {fight}")
             self.last_attacking_time = current_time
                     
 
@@ -189,7 +187,7 @@ class Projectiles(pygame.sprite.Sprite):
                 solo_mobs.remove(mob)
                 
     
-    def mob_attack(self, solo_player_class, current_time):
+    def mob_attack(self, solo_player_class, current_time, fight):
         remove_bullets = []
 
         for proj in solo_mob_projectiles:
@@ -203,6 +201,7 @@ class Projectiles(pygame.sprite.Sprite):
             distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
             if solo_player_class.health > 0 and distance < 30:
                 solo_player_class.health -= 34
+                # fight = False
                 mob.last_attacking_time = current_time
                 print(f"self.health = {solo_player_class.health}")
                 remove_bullets.append(proj)
@@ -623,7 +622,7 @@ ws_thread.daemon = True
 ws_thread.start()
 
 # 
-time.sleep(1)
+time.sleep(1) 
 
 def draw_map(surface, camera_x, camera_y):
     tilewidth = tmx_data.tilewidth
@@ -1029,10 +1028,11 @@ while running:
         for mob in solo_mobs:
             mob.reset(camera_x, camera_y)
             mob.moving(solo_player_class)
-            mob.attack(solo_mob_projectiles, current_time, solo_mobs, solo_player_class)
+            mob.attack(solo_mob_projectiles, current_time, solo_mobs, solo_player_class, fight)
+
         for proj in solo_mob_projectiles:
             proj.reset(camera_x, camera_y)
-            proj.mob_attack(solo_player_class, current_time)
+            proj.mob_attack(solo_player_class, current_time, fight)
 
 
 

@@ -42,6 +42,8 @@ skip = False
 
 skip_time = 0
 duration = 0
+
+bullet = False
 def draw_square(surface, x, y, color, size=32):
     pygame.draw.rect(surface, color, (x - size//2, y - size//2, size, size))
 
@@ -69,14 +71,15 @@ class Mobs(pygame.sprite.Sprite):
         self.x += dx * self.speed
         self.y += dy * self.speed
 
-    def attack(self, solo_mob_projectiles, current_time, solo_mobs, solo_player_class):
+    def attack(self, solo_mob_projectiles, current_time, solo_mobs, solo_player_class, bullet):
         # for proj in solo_mob_projectiles:
             # print(f"current time {current_time}")
             # print(f"last_attacking_time {self.last_attacking_time}")
             # print(f"time {current_time - self.last_attacking_time}")
-        if current_time - self.last_attacking_time >= 1000:
+        if current_time - self.last_attacking_time >= 1000 and not bullet:
+            print(f"bullet {bullet}")
             solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
-            print(f"yes time {current_time - self.last_attacking_time}")
+            bullet = True
             # proj.reset(camera_x, camera_y)
             # proj.mob_attack(solo_player_class, current_time)
             self.last_attacking_time = current_time
@@ -189,43 +192,46 @@ class Projectiles(pygame.sprite.Sprite):
                 solo_mobs.remove(mob)
                 
     
-    def mob_attack(self, solo_player_class, current_time):
+    def mob_attack(self, solo_player_class, current_time, solo_mobs, bullet):
+        global remove_bullets
         remove_bullets = []
 
-        for proj in solo_mob_projectiles:
-            self.dx = solo_player_class.x - self.x
-            self.dy = solo_player_class.y - self.y
-            proj_distance = max(0,1, math.sqrt(self.dx*self.dx + self.dy*self.dy))
-            self.dx /= proj_distance
-            self.dy /= proj_distance
-            self.x += self.dx * self.speed
-            self.y += self.dy * self.speed
-            distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
-            if solo_player_class.health > 0 and distance < 30:
-                solo_player_class.health -= 34
-                mob.last_attacking_time = current_time
-                print(f"self.health = {solo_player_class.health}")
-                remove_bullets.append(proj)
-                mob.attacking = False
-                
-                
-            if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
-                remove_bullets.append(proj)
-                
-            if solo_player_class.health <= 0:
-                solo_time = False
-                solo_game_active = True  # Запускаем соло игру
-                # Сбрасываем камеру и позицию игрока
-                solo_player_class.x = map_width-(map_width//3)
-                solo_player_class.y = map_height-(map_height//3)
-                current_time = pygame.time.get_ticks()
-                solo_player_class.direction = 'down'
-                solo_player_class.health = 100
+        # for proj in solo_mob_projectiles:
+        for mob in solo_mobs:
+                self.dx = solo_player_class.x - self.x
+                self.dy = solo_player_class.y - self.y
+                proj_distance = max(0,1, math.sqrt(self.dx*self.dx + self.dy*self.dy))
+                self.dx /= proj_distance
+                self.dy /= proj_distance
+                self.x += self.dx * self.speed
+                self.y += self.dy * self.speed
+                distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
+                if solo_player_class.health > 0 and distance < 30 and current_time - mobb.last_attacking_time >= 1000:
+                    solo_player_class.health -= 34
+                    mob.last_attacking_time = current_time
+                    print(f"self.health = {solo_player_class.health}")
+                    remove_bullets.append(proj)
+                    mob.attacking = False
+                    #Сделать переменную, чтобы пока пуля летит, не добавлялись через секунду остальные пули в список, и только когда пуля уйдет в ремув, эта переменная стане тру, и тогда можно будет аппендить следующую пулю
+                    
+                if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
+                    remove_bullets.append(proj)
+                    
+                if solo_player_class.health <= 0:
+                    solo_time = False
+                    solo_game_active = True  # Запускаем соло игру
+                    # Сбрасываем камеру и позицию игрока
+                    solo_player_class.x = map_width-(map_width//3)
+                    solo_player_class.y = map_height-(map_height//3)
+                    current_time = pygame.time.get_ticks()
+                    solo_player_class.direction = 'down'
+                    solo_player_class.health = 100
 
 
-        for bullet in remove_bullets:
-            if bullet in solo_mob_projectiles:
-                solo_mob_projectiles.remove(bullet)
+        for proj in remove_bullets:
+            if proj in solo_mob_projectiles:
+                bullet = False
+                solo_mob_projectiles.remove(proj)
 
 
 
@@ -1029,10 +1035,10 @@ while running:
         for mob in solo_mobs:
             mob.reset(camera_x, camera_y)
             mob.moving(solo_player_class)
-            mob.attack(solo_mob_projectiles, current_time, solo_mobs, solo_player_class)
+            mob.attack(solo_mob_projectiles, current_time, solo_mobs, solo_player_class, bullet)
         for proj in solo_mob_projectiles:
             proj.reset(camera_x, camera_y)
-            proj.mob_attack(solo_player_class, current_time)
+            proj.mob_attack(solo_player_class, current_time, solo_mobs, bullet)
 
 
 

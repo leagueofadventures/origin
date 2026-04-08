@@ -43,7 +43,8 @@ skip = False
 skip_time = 0
 duration = 0
 
-bullet = False
+fight = False
+
 def draw_square(surface, x, y, color, size=32):
     pygame.draw.rect(surface, color, (x - size//2, y - size//2, size, size))
 
@@ -71,17 +72,11 @@ class Mobs(pygame.sprite.Sprite):
         self.x += dx * self.speed
         self.y += dy * self.speed
 
-    def attack(self, solo_mob_projectiles, current_time, solo_mobs, solo_player_class, bullet):
-        # for proj in solo_mob_projectiles:
-            # print(f"current time {current_time}")
-            # print(f"last_attacking_time {self.last_attacking_time}")
-            # print(f"time {current_time - self.last_attacking_time}")
-        if current_time - self.last_attacking_time >= 1000 and not bullet:
-            print(f"bullet {bullet}")
+    def attack(self, solo_mob_projectiles, current_time, solo_mobs, solo_player_class):
+        print(f"solo mobs {solo_mobs}")
+        if not solo_mob_projectiles and current_time - self.last_attacking_time >= 1000:# and not fight:
             solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
-            bullet = True
-            # proj.reset(camera_x, camera_y)
-            # proj.mob_attack(solo_player_class, current_time)
+            print(f"fight {fight}")
             self.last_attacking_time = current_time
                     
 
@@ -118,11 +113,11 @@ class Player(pygame.sprite.Sprite):
             self.attack_sprites[dir_name] = []
 
             for i in range(1, 7):  # 6 кадров анимации для каждой стороны
-                # Walk sprites
+                
                 walk_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Walk_without_shadow.png', f'{dir_name}{i}.png')
                 img = pygame.image.load(walk_path).convert_alpha()
                 self.sprites[dir_name].append(img)
-                # Attack sprites (12 frames, but we use first 6 for simplicity)
+                
                 attack_path = os.path.join(PROJECT_DIR, 'sprites', 'PNG', 'Vampires1', 'Vampires1_Attack_without_shadow.png', f'{dir_name}{i}.png')
                 img_attack = pygame.image.load(attack_path).convert_alpha()
                 self.attack_sprites[dir_name].append(img_attack)
@@ -192,45 +187,43 @@ class Projectiles(pygame.sprite.Sprite):
                 solo_mobs.remove(mob)
                 
     
-    def mob_attack(self, solo_player_class, current_time, solo_mobs, bullet):
-        global remove_bullets
+    def mob_attack(self, solo_player_class, current_time):
         remove_bullets = []
 
-        # for proj in solo_mob_projectiles:
-        for mob in solo_mobs:
-                self.dx = solo_player_class.x - self.x
-                self.dy = solo_player_class.y - self.y
-                proj_distance = max(0,1, math.sqrt(self.dx*self.dx + self.dy*self.dy))
-                self.dx /= proj_distance
-                self.dy /= proj_distance
-                self.x += self.dx * self.speed
-                self.y += self.dy * self.speed
-                distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
-                if solo_player_class.health > 0 and distance < 30 and current_time - mobb.last_attacking_time >= 1000:
-                    solo_player_class.health -= 34
+        for proj in solo_mob_projectiles:
+            self.dx = solo_player_class.x - self.x
+            self.dy = solo_player_class.y - self.y
+            proj_distance = max(0,1, math.sqrt(self.dx*self.dx + self.dy*self.dy))
+            self.dx /= proj_distance
+            self.dy /= proj_distance
+            self.x += self.dx * self.speed
+            self.y += self.dy * self.speed
+            distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
+            if solo_player_class.health > 0 and distance < 30:
+                solo_player_class.health -= 34
+                for mob in solo_mobs:
                     mob.last_attacking_time = current_time
-                    print(f"self.health = {solo_player_class.health}")
-                    remove_bullets.append(proj)
-                    mob.attacking = False
-                    #Сделать переменную, чтобы пока пуля летит, не добавлялись через секунду остальные пули в список, и только когда пуля уйдет в ремув, эта переменная стане тру, и тогда можно будет аппендить следующую пулю
-                    
-                if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
-                    remove_bullets.append(proj)
-                    
-                if solo_player_class.health <= 0:
-                    solo_time = False
-                    solo_game_active = True  # Запускаем соло игру
-                    # Сбрасываем камеру и позицию игрока
-                    solo_player_class.x = map_width-(map_width//3)
-                    solo_player_class.y = map_height-(map_height//3)
-                    current_time = pygame.time.get_ticks()
-                    solo_player_class.direction = 'down'
-                    solo_player_class.health = 100
+                print(f"self.health = {solo_player_class.health}")
+                remove_bullets.append(proj)
+                mob.attacking = False
+                
+                
+            if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
+                remove_bullets.append(proj)
+                
+            if solo_player_class.health <= 0:
+                solo_time = False
+                solo_game_active = True  # Запускаем соло игру
+                # Сбрасываем камеру и позицию игрока
+                solo_player_class.x = map_width-(map_width//3)
+                solo_player_class.y = map_height-(map_height//3)
+                current_time = pygame.time.get_ticks()
+                solo_player_class.direction = 'down'
+                solo_player_class.health = 100
 
 
         for proj in remove_bullets:
             if proj in solo_mob_projectiles:
-                bullet = False
                 solo_mob_projectiles.remove(proj)
 
 
@@ -629,7 +622,7 @@ ws_thread.daemon = True
 ws_thread.start()
 
 # 
-time.sleep(1)
+time.sleep(1) 
 
 def draw_map(surface, camera_x, camera_y):
     tilewidth = tmx_data.tilewidth
@@ -1035,10 +1028,11 @@ while running:
         for mob in solo_mobs:
             mob.reset(camera_x, camera_y)
             mob.moving(solo_player_class)
-            mob.attack(solo_mob_projectiles, current_time, solo_mobs, solo_player_class, bullet)
+            mob.attack(solo_mob_projectiles, current_time, solo_mobs, solo_player_class)
+
         for proj in solo_mob_projectiles:
             proj.reset(camera_x, camera_y)
-            proj.mob_attack(solo_player_class, current_time, solo_mobs, bullet)
+            proj.mob_attack(solo_player_class, current_time)
 
 
 

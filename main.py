@@ -73,10 +73,8 @@ class Mobs(pygame.sprite.Sprite):
         self.y += dy * self.speed
 
     def attack(self, solo_mob_projectiles, current_time, solo_mobs, solo_player_class):
-        print(f"solo mobs {solo_mobs}")
         if not solo_mob_projectiles and current_time - self.last_attacking_time >= 1000:# and not fight:
-            solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
-            print(f"fight {fight}")
+            solo_mob_projectiles.append(Projectiles(self.x, self.y, 5, solo_player_class.x, solo_player_class.y))
             self.last_attacking_time = current_time
                     
 
@@ -143,35 +141,38 @@ class Player(pygame.sprite.Sprite):
                     
 
 class Projectiles(pygame.sprite.Sprite):
-    def __init__(self, x, y, speed):
+    def __init__(self, x, y, speed, target_x, target_y):
         super().__init__()
         self.x = x
         self.y = y
         self.speed = speed
+        dx = target_x - x
+        dy = target_y - y
+        proj_distance = max(0,1, math.sqrt(dx*dx + dy*dy))
+        self.dx = dx / proj_distance
+        self.dy = dy / proj_distance
 
+        
     def reset(self, camera_x, camera_y):
         draw_circle(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0), 6)  
         
+    def update(self):
+        
+        self.x += self.dx * self.speed
+        self.y += self.dy * self.speed
 
     def player_attack(self, solo_mobs, solo_projectiles):
         remove_bullets = []
         remove_mobs = []
         for mob in solo_mobs:
             for proj in solo_projectiles:
-                self.dx = mob.x - self.x 
-                self.dy = mob.y - self.y
-                distance = max(0.1, math.sqrt(self.dx*self.dx + self.dy*self.dy))
-                self.dx /= distance
-                self.dy /= distance
-                self.x += self.dx * self.speed
-                self.y += self.dy * self.speed
+                self.update()
                 player_distance = math.sqrt((self.x - mob.x)**2 + (self.y- mob.y)**2)
                 if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
                     remove_bullets.append(proj)
                     break
                 if mob.health > 0:
                     if player_distance < 30:
-                        print(f"mob health: {mob.health}")
                         mob.health -= 34
                         remove_bullets.append(proj)
                         mob.attacking = False
@@ -191,19 +192,12 @@ class Projectiles(pygame.sprite.Sprite):
         remove_bullets = []
 
         for proj in solo_mob_projectiles:
-            self.dx = solo_player_class.x - self.x
-            self.dy = solo_player_class.y - self.y
-            proj_distance = max(0,1, math.sqrt(self.dx*self.dx + self.dy*self.dy))
-            self.dx /= proj_distance
-            self.dy /= proj_distance
-            self.x += self.dx * self.speed
-            self.y += self.dy * self.speed
+            self.update()
             distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
             if solo_player_class.health > 0 and distance < 30:
                 solo_player_class.health -= 34
                 for mob in solo_mobs:
                     mob.last_attacking_time = current_time
-                print(f"self.health = {solo_player_class.health}")
                 remove_bullets.append(proj)
                 mob.attacking = False
                 
@@ -995,9 +989,10 @@ while running:
             solo_mobs.append(Mobs(width//4, height//4, 1, 100, 0, False))
     
         if solo_player_class.attacking and current_time - solo_player_class.last_attacking_time >= 1000:
-            solo_projectiles.append(Projectiles(solo_player_class.x, solo_player_class.y, 5))
-            solo_player_class.last_attacking_time = current_time
-        
+            for mob in solo_mobs:
+                solo_projectiles.append(Projectiles(solo_player_class.x, solo_player_class.y, 5, mob.x, mob.y))
+                solo_player_class.last_attacking_time = current_time
+            
         
         
         

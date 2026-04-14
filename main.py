@@ -188,22 +188,24 @@ class Projectiles(pygame.sprite.Sprite):
                 solo_mobs.remove(mob)
                 
     
-    def mob_attack(self, solo_player_class, current_time):
+    def mob_attack(self, solo_player_class, current_time, map_width, map_height):
         remove_bullets = []
-
         for proj in solo_mob_projectiles:
             self.update()
             distance = math.sqrt((self.x - solo_player_class.x)**2 + (self.y - solo_player_class.y)**2)
+            
             if solo_player_class.health > 0 and distance < 30:
                 solo_player_class.health -= 34
                 for mob in solo_mobs:
                     mob.last_attacking_time = current_time
                 remove_bullets.append(proj)
                 mob.attacking = False
+
+
                 
-                
-            # if self.x <= 0 or self.x >= 1920 or self.y <= 0 or self.y >= 1080:
-            #     remove_bullets.append(proj)
+            if (self.x <= 0 or self.x >= map_width or 
+                self.y <= 0 or self.y >= map_height):
+                remove_bullets.append(self)
                 
             if solo_player_class.health <= 0:
                 solo_time = False
@@ -280,7 +282,6 @@ for i in range(3):
         toggle_image = 'on_toggle' + str(i) + '.png'
         toggle_file = os.path.join(PROJECT_DIR, 'images', toggle_image)
         image = pygame.transform.scale(pygame.image.load(toggle_file), (width//16, height//15.42857142857143))
-        print(f"x, y {width//16, height//15.42857142857143}")
         image_rect = image.get_rect()
         toggles_rect.append(image_rect)
         toggles.append(image)
@@ -710,7 +711,6 @@ while running:
             if event.key == pygame.K_SPACE and solo_time:
                 skip = True
                 skip_time = pygame.time.get_ticks()
-                print(skip_time)
             elif event.type == pygame.KEYDOWN and chat_input_mode:
                 if chat_input_mode:
                     if event.key == pygame.K_RETURN:
@@ -739,7 +739,6 @@ while running:
                     camera_y = 0
                     solo_player_class.x = map_width-(map_width//3)
                     solo_player_class.y = map_height-(map_height//3)
-                    print(f"duration {duration}")
             
 
         if event.type == pygame.MOUSEBUTTONDOWN: 
@@ -976,7 +975,6 @@ while running:
         if not solo_mobs:
             x = random.randint(100, map_width-200) #С х все нормально
             y = random.randint(100, map_height-200) #Проблема в координате y
-            print(f"mob x, y: {x, y}")
             solo_mobs.append(Mobs(random.randint(100, map_width-200), random.randint(100, map_height-200), 1, 100, 0, False)) #random.randint(100, map_width-200), random.randint(100, map_height-200)
     
         if solo_player_class.attacking and current_time - solo_player_class.last_attacking_time >= 1000:
@@ -1015,7 +1013,7 @@ while running:
 
         for proj in solo_mob_projectiles:
             proj.reset(camera_x, camera_y)
-            proj.mob_attack(solo_player_class, current_time)
+            proj.mob_attack(solo_player_class, current_time, map_width, map_height)
 
 
 

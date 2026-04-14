@@ -280,6 +280,7 @@ for i in range(3):
         toggle_image = 'on_toggle' + str(i) + '.png'
         toggle_file = os.path.join(PROJECT_DIR, 'images', toggle_image)
         image = pygame.transform.scale(pygame.image.load(toggle_file), (width//16, height//15.42857142857143))
+        print(f"x, y {width//16, height//15.42857142857143}")
         image_rect = image.get_rect()
         toggles_rect.append(image_rect)
         toggles.append(image)

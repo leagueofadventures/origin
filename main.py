@@ -43,13 +43,8 @@ skip = False
 skip_time = 0
 duration = 0
 
-<<<<<<< HEAD
-
-clock = pygame.time.Clock()
-=======
 fight = False
 
->>>>>>> 0f6b58668f06e2d9fb6279c8443fdcdf3dca1c34
 def draw_square(surface, x, y, color, size=32):
     pygame.draw.rect(surface, color, (x - size//2, y - size//2, size, size))
 
@@ -574,6 +569,8 @@ chat_input_text = ""
 in_pause = False
 image_counter = 0
 in_quit = False
+
+clock = pygame.time.Clock()
 
 
 def on_message(ws, message):

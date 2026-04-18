@@ -1,40 +1,79 @@
-name: Build EXE with Pygame
+ name: EXE Build
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
-    - uses: actions/setup-python@v4
+    - name: Setup Python
+      uses: actions/setup-python@v4
       with:
         python-version: '3.11'
     
-    - name: Install dependencies
+    - name: Install PyInstaller and Pygame
       shell: cmd
       run: |
         python -m pip install --upgrade pip
-        pip install pyinstaller
-        pip install pygame
-        if exist requirements.txt pip install -r requirements.txt
+        pip install pygame pyinstaller
     
-    - name: Build EXE with Pygame support
+    - name: Check for requirements
+      id: check-reqs
       shell: cmd
       run: |
-        pyinstaller --onedir --name=MyApp ^
+        if exist requirements.txt (
+          echo requirements_exists=true >> %GITHUB_OUTPUT%
+        ) else (
+          echo requirements_exists=false >> %GITHUB_OUTPUT%
+        )
+    
+    - name: Install requirements
+      if: steps.check-reqs.outputs.requirements_exists == 'true'
+      shell: cmd
+      run: pip install -r requirements.txt
+    
+    - name: Build executable with Pygame support
+      shell: cmd
+      run: |
+        echo Building League of Adventures EXE...
+        
+        pyinstaller --onedir --name="League of Adventures" ^
           --hidden-import=pygame ^
           --hidden-import=pygame._sdl2 ^
           --hidden-import=pygame.mixer ^
-          --hidden-import=pygame.mixer.music ^
           --hidden-import=pygame.font ^
-          --hidden-import=pygame.image ^
-          --hidden-import=pygame.transform ^
           --collect-all=pygame ^
           --add-data="images/*;images/" ^
           --add-data="maps/*;maps/" ^
           --add-data="music/*;music/" ^
           --add-data="sprites/PNG/*;sprites/PNG/" ^
           main.py
+    
+    - name: Create ZIP archive
+      shell: cmd
+      run: |
+        echo Creating ZIP archive...
+        
+        if exist "dist\League of Adventures" (
+          ren "dist\League of Adventures" "League of Adventures-Windows"
+          powershell -Command "Compress-Archive -Path 'dist\League of Adventures-Windows\*' -DestinationPath 'League of Adventures-Windows.zip' -Force"
+          echo Archive created successfully
+        ) else (
+          echo ERROR: dist\League of Adventures folder not found!
+          dir dist
+        )
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: League-of-Adventures-Executable
+        path: |
+          "League of Adventures-Windows.zip"
+          "dist/League of Adventures-Windows/"

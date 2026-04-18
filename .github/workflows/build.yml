@@ -1,4 +1,4 @@
-name: EXE Build
+name: Build Python to EXE
 
 on:
   push:
@@ -18,11 +18,11 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install PyInstaller and Pygame
+    - name: Install PyInstaller
       shell: cmd
       run: |
         python -m pip install --upgrade pip
-        pip install pygame pyinstaller
+        pip install pyinstaller
     
     - name: Check for requirements
       id: check-reqs
@@ -39,41 +39,14 @@ jobs:
       shell: cmd
       run: pip install -r requirements.txt
     
-    - name: Build executable with Pygame support
+    - name: Build executable
       shell: cmd
       run: |
-        echo Building EXE with Pygame support...
-        
-        pyinstaller --onedir --name=MyApp ^
-          --hidden-import=pygame ^
-          --hidden-import=pygame._sdl2 ^
-          --hidden-import=pygame.mixer ^
-          --hidden-import=pygame.font ^
-          --collect-all=pygame ^
-          --add-data="images/*;images/" ^
-          --add-data="maps/*;maps/" ^
-          --add-data="music/*;music/" ^
-          --add-data="sprites/PNG/*;sprites/PNG/" ^
-          main.py
+        echo Building EXE...
+        pyinstaller --onedir --name=MyApp main.py
     
-    - name: Create ZIP archive
-      shell: cmd
-      run: |
-        echo Creating ZIP archive...
-        
-        if exist dist\MyApp (
-          ren dist\MyApp MyApp-Windows
-          powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip' -Force"
-          echo Archive created successfully
-        ) else (
-          echo ERROR: dist\MyApp folder not found!
-          dir dist
-        )
-    
-    - name: Upload artifacts
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: MyApp-Executable
-        path: |
-          MyApp-Windows.zip
-          dist/MyApp-Windows/
+        path: dist/

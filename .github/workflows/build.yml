@@ -1,0 +1,40 @@
+name: Build EXE with Pygame
+
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      shell: cmd
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        pip install pygame
+        if exist requirements.txt pip install -r requirements.txt
+    
+    - name: Build EXE with Pygame support
+      shell: cmd
+      run: |
+        pyinstaller --onedir --name=MyApp ^
+          --hidden-import=pygame ^
+          --hidden-import=pygame._sdl2 ^
+          --hidden-import=pygame.mixer ^
+          --hidden-import=pygame.mixer.music ^
+          --hidden-import=pygame.font ^
+          --hidden-import=pygame.image ^
+          --hidden-import=pygame.transform ^
+          --collect-all=pygame ^
+          --add-data="images/*;images/" ^
+          --add-data="maps/*;maps/" ^
+          --add-data="music/*;music/" ^
+          --add-data="sprites/PNG/*;sprites/PNG/" ^
+          main.py

@@ -22,38 +22,62 @@ jobs:
       with:
         python-version: '3.11'
     
-    # 3. Устанавливаем зависимости (PowerShell 7 синтаксис)
+    # 3. Устанавливаем зависимости (с явным shell)
     - name: Install dependencies
+      shell: pwsh  # Явно указываем PowerShell 7
       run: |
         python -m pip install --upgrade pip
         pip install pyinstaller
         
-        # Проверяем наличие requirements.txt (PowerShell синтаксис)
+        # Проверяем наличие requirements.txt
         if (Test-Path requirements.txt) {
           pip install -r requirements.txt
+        } else {
+          Write-Host "No requirements.txt found"
         }
     
-    # 4. Компилируем в EXE с папкой и ресурсами
+    # 4. Компилируем в EXE
     - name: Build EXE with PyInstaller
+      shell: pwsh
       run: |
-        # Создаем one directory с добавлением папок ресурсов
-        pyinstaller `
-          --onedir `
-          --name=MyApp `
-          --add-data="images/*;images/" `
-          --add-data="maps/*;maps/" `
-          --add-data="music/*;music/" `
-          --add-data="sprites/PNG/*;sprites/PNG/" `
-          main.py
-    
-    # 5. Создаем архив с папкой приложения
-    - name: Create ZIP archive
-      run: |
-        # Переименовываем папку dist/MyApp
-        Rename-Item -Path "dist/MyApp" -NewName "MyApp-Windows"
+        Write-Host "Starting PyInstaller..."
         
-        # Создаем ZIP архив
-        Compress-Archive -Path "dist/MyApp-Windows/*" -DestinationPath "MyApp-Windows.zip"
+        # Создаем команду с проверкой папок
+        $cmd = "pyinstaller --onedir --name=MyApp"
+        
+        # Добавляем только существующие папки
+        $folders = @(
+          @{Source="images/*"; Dest="images/"},
+          @{Source="maps/*"; Dest="maps/"},
+          @{Source="music/*"; Dest="music/"},
+          @{Source="sprites/PNG/*"; Dest="sprites/PNG/"}
+        )
+        
+        foreach ($folder in $folders) {
+          if (Test-Path ($folder.Source -replace '\*', '')) {
+            $cmd += " --add-data='$($folder.Source);$($folder.Dest)'"
+            Write-Host "Adding folder: $($folder.Source)"
+          } else {
+            Write-Host "Skipping missing folder: $($folder.Source)"
+          }
+        }
+        
+        $cmd += " main.py"
+        Write-Host "Command: $cmd"
+        Invoke-Expression $cmd
+    
+    # 5. Создаем архив
+    - name: Create ZIP archive
+      shell: pwsh
+      run: |
+        if (Test-Path "dist/MyApp") {
+          Rename-Item -Path "dist/MyApp" -NewName "MyApp-Windows"
+          Compress-Archive -Path "dist/MyApp-Windows/*" -DestinationPath "MyApp-Windows.zip"
+          Write-Host "Archive created: MyApp-Windows.zip"
+        } else {
+          Write-Host "ERROR: dist/MyApp folder not found!"
+          Get-ChildItem -Path "dist" -Recurse | Format-Table Name
+        }
     
     # 6. Сохраняем результат
     - name: Upload application as artifact

@@ -1,74 +1,58 @@
-name: Build EXE from Python
+name: Build Python to EXE
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build-windows-exe:
+  build:
     runs-on: windows-latest
     
     steps:
-    # 1. Загружаем код
-    - name: Checkout repository
+    - name: Checkout code
       uses: actions/checkout@v4
     
-    # 2. Устанавливаем Python
-    - name: Set up Python
+    - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
     
-    # 3. Устанавливаем зависимости
-    - name: Install dependencies
+    - name: Install PyInstaller
       run: |
         python -m pip install --upgrade pip
         pip install pyinstaller
-        
-        # Если есть requirements.txt - устанавливаем зависимости
-        if exist requirements.txt (
-          pip install -r requirements.txt
-        )
     
-    # 4. Компилируем в EXE с папкой и ресурсами
-    - name: Build EXE with PyInstaller
+    - name: Check for requirements
+      id: check-reqs
       run: |
-        # Создаем one directory с добавлением папок ресурсов
-        pyinstaller ^
-          --onedir ^  # ВАЖНО: one directory вместо onefile
-          --name=MyApp ^
-          --add-data="images/*;images/" ^
-          --add-data="maps/*;maps/" ^
-          --add-data="music/*;music/" ^
-          --add-data="sprites/PNG/*;sprites/PNG/" ^
-          --collect-all=pygame ^  # Если используете pygame
-          main.py
+        if [ -f "requirements.txt" ]; then
+          echo "requirements_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "requirements_exists=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Install requirements
+      if: steps.check-reqs.outputs.requirements_exists == 'true'
+      run: pip install -r requirements.txt
+    
+    - name: Build executable
+      run: |
+        echo "Building EXE..."
         
-        # Альтернатива для GUI приложений:
-        # pyinstaller --onedir --windowed --name=MyApp ^
+        # Базовая команда
+        pyinstaller --onedir --name=MyApp main.py
+        
+        # Или с ресурсами (раскомментируйте если нужно)
+        # pyinstaller --onedir --name=MyApp ^
         #   --add-data="images/*;images/" ^
         #   --add-data="maps/*;maps/" ^
         #   --add-data="music/*;music/" ^
         #   --add-data="sprites/PNG/*;sprites/PNG/" ^
         #   main.py
     
-    # 5. Создаем архив с папкой приложения
-    - name: Create ZIP archive
-      run: |
-        # Переименовываем папку dist/MyApp в более понячное имя
-        Rename-Item -Path "dist/MyApp" -NewName "MyApp-Windows"
-        
-        # Создаем ZIP архив
-        Compress-Archive -Path "dist/MyApp-Windows/*" -DestinationPath "MyApp-Windows.zip"
-    
-    # 6. Сохраняем результат
-    - name: Upload application as artifact
+    - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: MyApp-Windows-Full
-        path: |
-          MyApp-Windows.zip
-          dist/MyApp-Windows/
+        name: MyApp-Executable
+        path: dist/

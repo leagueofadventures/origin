@@ -1,4 +1,4 @@
- name: EXE Build
+name: EXE Build
 
 on:
   push:
@@ -42,9 +42,9 @@ jobs:
     - name: Build executable with Pygame support
       shell: cmd
       run: |
-        echo Building League of Adventures EXE...
+        echo Building EXE with Pygame support...
         
-        pyinstaller --onedir --name="League of Adventures" ^
+        pyinstaller --onedir --name=MyApp ^
           --hidden-import=pygame ^
           --hidden-import=pygame._sdl2 ^
           --hidden-import=pygame.mixer ^
@@ -61,19 +61,19 @@ jobs:
       run: |
         echo Creating ZIP archive...
         
-        if exist "dist\League of Adventures" (
-          ren "dist\League of Adventures" "League of Adventures-Windows"
-          powershell -Command "Compress-Archive -Path 'dist\League of Adventures-Windows\*' -DestinationPath 'League of Adventures-Windows.zip' -Force"
+        if exist dist\MyApp (
+          ren dist\MyApp MyApp-Windows
+          powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip' -Force"
           echo Archive created successfully
         ) else (
-          echo ERROR: dist\League of Adventures folder not found!
+          echo ERROR: dist\MyApp folder not found!
           dir dist
         )
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: League-of-Adventures-Executable
+        name: MyApp-Executable
         path: |
-          "League of Adventures-Windows.zip"
-          "dist/League of Adventures-Windows/"
+          MyApp-Windows.zip
+          dist/MyApp-Windows/

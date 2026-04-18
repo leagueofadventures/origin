@@ -1,0 +1,67 @@
+name: Build EXE from Python
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows-exe:
+    runs-on: windows-latest
+    
+    steps:
+    # 1. Загружаем код
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    # 2. Устанавливаем Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    # 3. Устанавливаем зависимости (исправлено!)
+    - name: Install dependencies
+      shell: cmd  # Явно указываем CMD
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        
+        if exist requirements.txt (
+          pip install -r requirements.txt
+        )
+    
+    # 4. Компилируем в EXE с папкой и ресурсами
+    - name: Build EXE with PyInstaller
+      shell: cmd  # Тоже используем CMD для консистентности
+      run: |
+        # Создаем one directory с добавлением папок ресурсов
+        pyinstaller ^
+          --onedir ^
+          --name=MyApp ^
+          --add-data="images/*;images/" ^
+          --add-data="maps/*;maps/" ^
+          --add-data="music/*;music/" ^
+          --add-data="sprites/PNG/*;sprites/PNG/" ^
+          main.py
+    
+    # 5. Создаем архив с папкой приложения
+    - name: Create ZIP archive
+      shell: cmd
+      run: |
+        # Переименовываем папку dist/MyApp
+        ren dist\MyApp MyApp-Windows
+        
+        # Создаем ZIP архив (PowerShell команда)
+        powershell Compress-Archive -Path "dist\MyApp-Windows\*" -DestinationPath "MyApp-Windows.zip"
+    
+    # 6. Сохраняем результат
+    - name: Upload application as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MyApp-Windows-Full
+        path: |
+          MyApp-Windows.zip
+          dist/MyApp-Windows/

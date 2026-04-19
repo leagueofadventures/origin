@@ -25,28 +25,17 @@ jobs:
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client
         if exist requirements.txt pip install -r requirements.txt
     
-    - name: Test installations (ASCII only)
-      shell: cmd
-      run: |
-        python -c "import pygame; print('Pygame', pygame.version.ver, 'OK')"
-        python -c "import pytmx; print('PyTMX OK')"
-        python -c "import websocket; print('WebSocket OK')"
-    
-    - name: Build EXE with all imports
+    - name: Build EXE with proper resource handling
       shell: cmd
       run: |
         pyinstaller --onedir --name=MyApp ^
           --hidden-import=pygame ^
-          --hidden-import=pygame._sdl2 ^
-          --hidden-import=pygame.mixer ^
-          --hidden-import=pygame.font ^
           --hidden-import=pytmx ^
           --hidden-import=websocket ^
-          --collect-all=pygame ^
-          --add-data="images/*;images/" ^
-          --add-data="music/*;music/" ^
-          --add-data="maps/*;maps/" ^
-          --add-data="sprites/PNG/*;sprites/PNG/" ^
+          --add-data="images;images" ^
+          --add-data="music;music" ^
+          --add-data="maps;maps" ^
+          --add-data="sprites;sprites" ^
           main.py
     
     - name: Create ZIP archive

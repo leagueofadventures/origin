@@ -18,58 +18,25 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install with Force Reinstall
+    - name: Install dependencies
       shell: cmd
       run: |
         python -m pip install --upgrade pip
-        pip uninstall pygame -y
-        pip uninstall pyinstaller -y
-        pip install pygame==2.5.2
-        pip install pyinstaller==5.13.0
-        if exist requirements.txt (
-          pip install -r requirements.txt
-        )
+        pip install pygame==2.5.2 pyinstaller==5.13.0
+        if exist requirements.txt pip install -r requirements.txt
     
-    - name: Verify Pygame Installation
+    - name: Test pygame installation
       shell: cmd
-      run: |
-        python -c "import sys; print('Python path:'); [print(f'  {p}') for p in sys.path]; \
-        try: \
-          import pygame; \
-          print(f'✓ Pygame imported: {pygame.version.ver}'); \
-          import pygame as pg; \
-          print(f'Pygame location: {pg.__file__}'); \
-        except ImportError as e: \
-          print(f'✗ Pygame import failed: {e}'); \
-          import site, os; \
-          print('Searching for pygame...'); \
-          [print(f'Found pygame at: {os.path.join(sp, \"pygame\")}') for sp in site.getsitepackages() if os.path.exists(os.path.join(sp, 'pygame'))]"
+      run: python -c "import pygame; print(f'Pygame {pygame.version.ver} installed successfully')"
     
-    - name: Build with Extended Pygame Imports
+    - name: Build EXE
       shell: cmd
       run: |
         pyinstaller --onedir --name=MyApp ^
           --hidden-import=pygame ^
-          --hidden-import=pygame.base ^
-          --hidden-import=pygame.constants ^
-          --hidden-import=pygame.display ^
-          --hidden-import=pygame.draw ^
-          --hidden-import=pygame.event ^
-          --hidden-import=pygame.font ^
-          --hidden-import=pygame.image ^
-          --hidden-import=pygame.joystick ^
-          --hidden-import=pygame.key ^
-          --hidden-import=pygame.mixer ^
-          --hidden-import=pygame.mixer.music ^
-          --hidden-import=pygame.mouse ^
-          --hidden-import=pygame.rect ^
-          --hidden-import=pygame.sprite ^
-          --hidden-import=pygame.surface ^
-          --hidden-import=pygame.time ^
-          --hidden-import=pygame.transform ^
           --hidden-import=pygame._sdl2 ^
-          --hidden-import=pygame._sdl2.audio ^
-          --hidden-import=pygame._sdl2.video ^
+          --hidden-import=pygame.mixer ^
+          --hidden-import=pygame.font ^
           --collect-all=pygame ^
           --add-data="images/*;images/" ^
           --add-data="music/*;music/" ^
@@ -77,26 +44,12 @@ jobs:
           --add-data="sprites/PNG/*;sprites/PNG/" ^
           main.py
     
-    - name: Test the Built EXE
-      shell: cmd
-      run: |
-        if exist dist\MyApp\MyApp.exe (
-          cd dist\MyApp
-          echo import sys > test.py
-          echo try: >> test.py
-          echo     import pygame >> test.py
-          echo     print("Pygame OK:", pygame.version.ver) >> test.py
-          echo except Exception as e: >> test.py
-          echo     print("Error:", e) >> test.py
-          python test.py
-        )
-    
     - name: Create ZIP archive
       shell: cmd
       run: |
         if exist dist\MyApp (
           ren dist\MyApp MyApp-Windows
-          powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip'"
+          powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip' -Force"
         )
     
     - name: Upload artifacts

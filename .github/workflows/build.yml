@@ -31,10 +31,10 @@ jobs:
         # Потом устанавливаем pyinstaller
         pip install pyinstaller
     
-    - name: Build executable with explicit pygame imports
+    - name: Build executable with resources
       shell: cmd
       run: |
-        echo Building EXE...
+        echo Building EXE with resources...
         
         pyinstaller --onedir --name=MyApp ^
           --hidden-import=pygame ^
@@ -42,10 +42,30 @@ jobs:
           --hidden-import=pygame.mixer ^
           --hidden-import=pygame.font ^
           --collect-all=pygame ^
+          --add-data="images/*;images/" ^
+          --add-data="music/*;music/" ^
+          --add-data="maps/*;maps/" ^
+          --add-data="sprites/PNG/*;sprites/PNG/" ^
           main.py
     
-    - name: Upload artifact
+    - name: Create ZIP archive
+      shell: cmd
+      run: |
+        echo Creating ZIP archive...
+        
+        if exist dist\MyApp (
+          ren dist\MyApp MyApp-Windows
+          powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip' -Force"
+          echo Archive created successfully
+        ) else (
+          echo ERROR: dist\MyApp folder not found!
+          dir dist
+        )
+    
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: MyApp-Executable
-        path: dist/
+        path: |
+          MyApp-Windows.zip
+          dist/MyApp-Windows/

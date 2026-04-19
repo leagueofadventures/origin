@@ -1,4 +1,4 @@
-name: Build Complete Game Package
+name: Build Two EXE in Game Folder
 
 on:
   push:
@@ -25,44 +25,80 @@ jobs:
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
         if exist requirements.txt pip install -r requirements.txt
     
-    - name: Build Complete Package
+    # 1. Собираем Game.exe
+    - name: Build Game EXE
       shell: cmd
       run: |
-        echo Building complete game package...
-        
-        # Собираем лаунчер как ОСНОВНОЙ EXE
-        pyinstaller --onedir --name="LeagueOfAdventures" ^
+        echo Building Game.exe...
+        pyinstaller --onedir --name=Game ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
           --hidden-import=websocket ^
-          --hidden-import=tkinter ^
           --hidden-import=requests ^
-          --add-data="main.py;." ^           # Добавляем main.py как файл
           --add-data="images;images" ^
           --add-data="music;music" ^
           --add-data="maps;maps" ^
           --add-data="sprites;sprites" ^
-          launcher.py                         # Основной файл - лаунчер
+          main.py
+    
+    # 2. Собираем Launcher.exe  
+    - name: Build Launcher EXE
+      shell: cmd
+      run: |
+        echo Building Launcher.exe...
+        pyinstaller --onedir --name=Launcher ^
+          --hidden-import=tkinter ^
+          --hidden-import=requests ^
+          launcher.py
+    
+    # 3. Создаем папку Game с двумя EXE
+    - name: Create Game folder with both EXE
+      shell: cmd
+      run: |
+        echo Creating Game folder with both EXE...
+        
+        # Создаем папку Game
+        mkdir Game
+        
+        # Копируем ВСЕ из dist/Game в папку Game
+        if exist dist\Game (
+          xcopy dist\Game Game /E /I /Y
+          echo Copied Game.exe and all dependencies
+        )
+        
+        # Копируем Launcher.exe в ту же папку Game
+        if exist dist\Launcher\Launcher.exe (
+          copy dist\Launcher\Launcher.exe Game\Launcher.exe
+          echo Copied Launcher.exe to Game folder
+        )
+        
+        # Копируем общие DLL если нужно
+        if not exist Game\python311.dll (
+          if exist dist\Launcher\python311.dll (
+            copy dist\Launcher\python311.dll Game\
+          )
+        )
+        
+        echo Structure of Game folder:
+        dir Game
     
     - name: Create ZIP archive
       shell: cmd
       run: |
         echo Creating ZIP archive...
         
-        if exist "dist\LeagueOfAdventures" (
-          ren "dist\LeagueOfAdventures" "LeagueOfAdventures-Windows"
-          powershell -Command "Compress-Archive -Path 'dist\LeagueOfAdventures-Windows\*' -DestinationPath 'LeagueOfAdventures-Windows.zip' -Force"
-          echo ✓ Archive created
+        if exist Game (
+          powershell -Command "Compress-Archive -Path 'Game\*' -DestinationPath 'Game-Windows.zip' -Force"
+          echo Archive created: Game-Windows.zip
         ) else (
-          echo ✗ ERROR: Build folder not found!
-          dir dist
+          echo ERROR: Game folder not found!
           exit 1
         )
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: LeagueOfAdventures-Complete
+        name: Game-Folder-with-Two-EXE
         path: |
-          LeagueOfAdventures-Windows.zip
-          dist/LeagueOfAdventures-Windows/
+          Game-Windows.zip
+          Game/

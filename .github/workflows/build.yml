@@ -22,18 +22,17 @@ jobs:
       shell: cmd
       run: |
         python -m pip install --upgrade pip
-        pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx
+        pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client
         if exist requirements.txt pip install -r requirements.txt
     
-    - name: Test pygame installation
+    - name: Test installations
       shell: cmd
-      run: python -c "import pygame; print(f'Pygame {pygame.version.ver} installed successfully')"
+      run: |
+        python -c "import pygame; print(f'✓ Pygame {pygame.version.ver}')"
+        python -c "import pytmx; print(f'✓ PyTMX imported')"
+        python -c "import websocket; print(f'✓ WebSocket imported')"
     
-    - name: Test pytmx installation
-      shell: cmd
-      run: python -c "import pytmx; print(f'PyTMX installed successfully')"
-    
-    - name: Build EXE
+    - name: Build EXE with all imports
       shell: cmd
       run: |
         pyinstaller --onedir --name=MyApp ^
@@ -42,6 +41,17 @@ jobs:
           --hidden-import=pygame.mixer ^
           --hidden-import=pygame.font ^
           --hidden-import=pytmx ^
+          --hidden-import=websocket ^
+          --hidden-import=websocket._abnf ^
+          --hidden-import=websocket._app ^
+          --hidden-import=websocket._core ^
+          --hidden-import=websocket._exceptions ^
+          --hidden-import=websocket._handshake ^
+          --hidden-import=websocket._http ^
+          --hidden-import=websocket._logging ^
+          --hidden-import=websocket._socket ^
+          --hidden-import=websocket._ssl_compat ^
+          --hidden-import=websocket._url ^
           --collect-all=pygame ^
           --add-data="images/*;images/" ^
           --add-data="music/*;music/" ^
@@ -55,6 +65,10 @@ jobs:
         if exist dist\MyApp (
           ren dist\MyApp MyApp-Windows
           powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip' -Force"
+          echo Archive created successfully
+        ) else (
+          echo ERROR: Build failed - dist\MyApp not found
+          exit 1
         )
     
     - name: Upload artifacts

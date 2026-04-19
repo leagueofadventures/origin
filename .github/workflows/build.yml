@@ -1,4 +1,4 @@
-name: Build Game Folder with Tcl/Tk Fix
+name: EXE Build
 
 on:
   push:
@@ -41,20 +41,14 @@ jobs:
           --add-data="sprites;sprites" ^
           main.py
     
-    # 2. Собираем Launcher.exe с Tcl/Tk (без Python кода в YAML)
-    - name: Build Launcher EXE with Tcl/Tk
+    # 2. Собираем Launcher.exe  
+    - name: Build Launcher EXE
       shell: cmd
       run: |
-        echo Building Launcher.exe with Tcl/Tk support...
-        
-        # Используем простую команду Python без сложного форматирования
-        python -c "import tkinter; tcl = tkinter.Tcl(); print('TCL found')"
-        
+        echo Building Launcher.exe...
         pyinstaller --onedir --name=Launcher ^
           --hidden-import=tkinter ^
           --hidden-import=requests ^
-          --add-data="C:/hostedtoolcache/windows/Python/3.11.9/x64/tcl/*;tcl/" ^
-          --add-data="C:/hostedtoolcache/windows/Python/3.11.9/x64/tk/*;tk/" ^
           launcher.py
     
     # 3. Создаем папку Game с двумя EXE
@@ -72,10 +66,17 @@ jobs:
           echo Copied Game.exe and all dependencies
         )
         
-        # Копируем Launcher.exe и ВСЕ его зависимости в ту же папку Game
-        if exist dist\Launcher (
-          xcopy dist\Launcher Game /E /I /Y
-          echo Copied Launcher.exe and all dependencies
+        # Копируем Launcher.exe в ту же папку Game
+        if exist dist\Launcher\Launcher.exe (
+          copy dist\Launcher\Launcher.exe Game\Launcher.exe
+          echo Copied Launcher.exe to Game folder
+        )
+        
+        # Копируем общие DLL если нужно
+        if not exist Game\python311.dll (
+          if exist dist\Launcher\python311.dll (
+            copy dist\Launcher\python311.dll Game\
+          )
         )
         
         echo Structure of Game folder:

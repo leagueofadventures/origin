@@ -30,7 +30,7 @@ jobs:
       run: |
         echo Building League of Adventures Launcher...
         
-        pyinstaller --onedir --name="League of Adventures Launcher" ^
+        pyinstaller --onedir --name="LeagueOfAdventuresLauncher" ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
           --hidden-import=websocket ^
@@ -47,19 +47,33 @@ jobs:
       run: |
         echo Creating ZIP archive...
         
-        if exist "dist\League of Adventures Launcher" (
-          ren "dist\League of Adventures Launcher" "League of Adventures-Windows"
-          powershell -Command "Compress-Archive -Path 'dist\League of Adventures-Windows\*' -DestinationPath 'League of Adventures-Windows.zip' -Force"
-          echo Archive created successfully
+        if exist "dist\LeagueOfAdventuresLauncher" (
+          echo Found dist\LeagueOfAdventuresLauncher folder
+          dir "dist\LeagueOfAdventuresLauncher"
+          
+          # Переименовываем папку
+          ren "dist\LeagueOfAdventuresLauncher" "LeagueOfAdventures-Windows"
+          echo Renamed to LeagueOfAdventures-Windows
+          
+          # Создаем ZIP
+          powershell -Command "Compress-Archive -Path 'dist\LeagueOfAdventures-Windows\*' -DestinationPath 'LeagueOfAdventures-Windows.zip' -Force"
+          
+          if exist "LeagueOfAdventures-Windows.zip" (
+            echo ✓ ZIP archive created: LeagueOfAdventures-Windows.zip
+            dir "LeagueOfAdventures-Windows.zip"
+          ) else (
+            echo ✗ Failed to create ZIP archive
+          )
         ) else (
-          echo ERROR: dist\League of Adventures Launcher folder not found!
+          echo ✗ ERROR: dist\LeagueOfAdventuresLauncher folder not found!
+          echo Listing dist folder:
           dir dist
         )
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: League-of-Adventures-Launcher
+        name: LeagueOfAdventures-Launcher
         path: |
-          "League of Adventures-Windows.zip"
-          "dist/League of Adventures-Windows/"
+          LeagueOfAdventures-Windows.zip
+          dist/LeagueOfAdventures-Windows/

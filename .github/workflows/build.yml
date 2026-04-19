@@ -1,4 +1,4 @@
-name: Build Python to EXE
+name: Build League of Adventures Launcher
 
 on:
   push:
@@ -25,35 +25,41 @@ jobs:
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client
         if exist requirements.txt pip install -r requirements.txt
     
-    - name: Build EXE with proper resource handling
+    - name: Build Launcher EXE
       shell: cmd
       run: |
-        pyinstaller --onedir --name=MyApp ^
+        echo Building League of Adventures Launcher...
+        
+        pyinstaller --onedir --name="League of Adventures Launcher" ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
           --hidden-import=websocket ^
+          --hidden-import=tkinter ^
+          --add-data="main.py;." ^
           --add-data="images;images" ^
           --add-data="music;music" ^
           --add-data="maps;maps" ^
           --add-data="sprites;sprites" ^
-          main.py
+          launcher.py
     
     - name: Create ZIP archive
       shell: cmd
       run: |
-        if exist dist\MyApp (
-          ren dist\MyApp MyApp-Windows
-          powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip' -Force"
+        echo Creating ZIP archive...
+        
+        if exist "dist\League of Adventures Launcher" (
+          ren "dist\League of Adventures Launcher" "League of Adventures-Windows"
+          powershell -Command "Compress-Archive -Path 'dist\League of Adventures-Windows\*' -DestinationPath 'League of Adventures-Windows.zip' -Force"
           echo Archive created successfully
         ) else (
-          echo ERROR: Build failed - dist\MyApp not found
-          exit 1
+          echo ERROR: dist\League of Adventures Launcher folder not found!
+          dir dist
         )
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: MyApp-Executable
+        name: League-of-Adventures-Launcher
         path: |
-          MyApp-Windows.zip
-          dist/MyApp-Windows/
+          "League of Adventures-Windows.zip"
+          "dist/League of Adventures-Windows/"

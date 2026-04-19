@@ -1,4 +1,4 @@
-name: Build Game and Launcher
+name: Build Complete Game Package
 
 on:
   push:
@@ -25,69 +25,44 @@ jobs:
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
         if exist requirements.txt pip install -r requirements.txt
     
-    # 1. Собираем ОСНОВНУЮ ИГРУ (main.py -> Game.exe)
-    - name: Build Main Game EXE
+    - name: Build Complete Package
       shell: cmd
       run: |
-        echo Building Main Game EXE...
+        echo Building complete game package...
         
+        # Собираем лаунчер как ОСНОВНОЙ EXE
         pyinstaller --onedir --name="LeagueOfAdventures" ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
           --hidden-import=websocket ^
+          --hidden-import=tkinter ^
           --hidden-import=requests ^
+          --add-data="main.py;." ^           # Добавляем main.py как файл
           --add-data="images;images" ^
           --add-data="music;music" ^
           --add-data="maps;maps" ^
           --add-data="sprites;sprites" ^
-          main.py
+          launcher.py                         # Основной файл - лаунчер
     
-    # 2. Собираем ЛАУНЧЕР (launcher.py -> Launcher.exe)
-    - name: Build Launcher EXE
+    - name: Create ZIP archive
       shell: cmd
       run: |
-        echo Building Launcher EXE...
+        echo Creating ZIP archive...
         
-        pyinstaller --onedir --name="LeagueOfAdventuresLauncher" ^
-          --hidden-import=tkinter ^
-          --hidden-import=requests ^
-          launcher.py
-    
-    - name: Create combined ZIP archive
-      shell: cmd
-      run: |
-        echo Creating combined ZIP archive...
-        
-        # Создаем общую папку
-        mkdir LeagueOfAdventures-Complete
-        
-        # Копируем игру
         if exist "dist\LeagueOfAdventures" (
-          xcopy "dist\LeagueOfAdventures" "LeagueOfAdventures-Complete\Game" /E /I /Y
-          echo Copied game files
+          ren "dist\LeagueOfAdventures" "LeagueOfAdventures-Windows"
+          powershell -Command "Compress-Archive -Path 'dist\LeagueOfAdventures-Windows\*' -DestinationPath 'LeagueOfAdventures-Windows.zip' -Force"
+          echo ✓ Archive created
+        ) else (
+          echo ✗ ERROR: Build folder not found!
+          dir dist
+          exit 1
         )
-        
-        # Копируем лаунчер
-        if exist "dist\LeagueOfAdventuresLauncher" (
-          xcopy "dist\LeagueOfAdventuresLauncher" "LeagueOfAdventures-Complete\Launcher" /E /I /Y
-          echo Copied launcher files
-        )
-        
-        # Создаем инструкцию
-        echo # League of Adventures > "LeagueOfAdventures-Complete\README.txt"
-        echo. >> "LeagueOfAdventures-Complete\README.txt"
-        echo Запустите Launcher.exe для запуска игры с обновлениями >> "LeagueOfAdventures-Complete\README.txt"
-        echo или Game.exe для запуска игры напрямую >> "LeagueOfAdventures-Complete\README.txt"
-        
-        # Создаем ZIP
-        powershell -Command "Compress-Archive -Path 'LeagueOfAdventures-Complete\*' -DestinationPath 'LeagueOfAdventures-Complete.zip' -Force"
-        
-        echo ✓ Combined archive created
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: LeagueOfAdventures-Complete
         path: |
-          LeagueOfAdventures-Complete.zip
-          LeagueOfAdventures-Complete/
+          LeagueOfAdventures-Windows.zip
+          dist/LeagueOfAdventures-Windows/

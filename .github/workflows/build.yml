@@ -25,12 +25,12 @@ jobs:
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client
         if exist requirements.txt pip install -r requirements.txt
     
-    - name: Test installations
+    - name: Test installations (ASCII only)
       shell: cmd
       run: |
-        python -c "import pygame; print(f'✓ Pygame {pygame.version.ver}')"
-        python -c "import pytmx; print(f'✓ PyTMX imported')"
-        python -c "import websocket; print(f'✓ WebSocket imported')"
+        python -c "import pygame; print('Pygame', pygame.version.ver, 'OK')"
+        python -c "import pytmx; print('PyTMX OK')"
+        python -c "import websocket; print('WebSocket OK')"
     
     - name: Build EXE with all imports
       shell: cmd
@@ -42,16 +42,6 @@ jobs:
           --hidden-import=pygame.font ^
           --hidden-import=pytmx ^
           --hidden-import=websocket ^
-          --hidden-import=websocket._abnf ^
-          --hidden-import=websocket._app ^
-          --hidden-import=websocket._core ^
-          --hidden-import=websocket._exceptions ^
-          --hidden-import=websocket._handshake ^
-          --hidden-import=websocket._http ^
-          --hidden-import=websocket._logging ^
-          --hidden-import=websocket._socket ^
-          --hidden-import=websocket._ssl_compat ^
-          --hidden-import=websocket._url ^
           --collect-all=pygame ^
           --add-data="images/*;images/" ^
           --add-data="music/*;music/" ^

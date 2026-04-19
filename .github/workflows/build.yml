@@ -22,16 +22,10 @@ jobs:
       shell: cmd
       run: |
         python -m pip install --upgrade pip
-        
-        # Удаляем и переустанавливаем pygame
         pip uninstall pygame -y
         pip uninstall pyinstaller -y
-        
-        # Устанавливаем конкретные версии
         pip install pygame==2.5.2
         pip install pyinstaller==5.13.0
-        
-        # Другие зависимости
         if exist requirements.txt (
           pip install -r requirements.txt
         )
@@ -39,39 +33,21 @@ jobs:
     - name: Verify Pygame Installation
       shell: cmd
       run: |
-        echo Verifying pygame installation...
-        python -c "import sys
-print('Python path:')
-for p in sys.path:
-    print(f'  {p}')
-
-try:
-    import pygame
-    print(f'✓ Pygame imported: {pygame.version.ver}')
-    
-    # Проверяем где установлен pygame
-    import pygame as pg
-    print(f'Pygame location: {pg.__file__}')
-    
-except ImportError as e:
-    print(f'✗ Pygame import failed: {e}')
-    
-    # Пробуем найти pygame
-    import site
-    import os
-    
-    print('Searching for pygame...')
-    for site_package in site.getsitepackages():
-        pygame_path = os.path.join(site_package, 'pygame')
-        if os.path.exists(pygame_path):
-            print(f'Found pygame at: {pygame_path}')
-"
+        python -c "import sys; print('Python path:'); [print(f'  {p}') for p in sys.path]; \
+        try: \
+          import pygame; \
+          print(f'✓ Pygame imported: {pygame.version.ver}'); \
+          import pygame as pg; \
+          print(f'Pygame location: {pg.__file__}'); \
+        except ImportError as e: \
+          print(f'✗ Pygame import failed: {e}'); \
+          import site, os; \
+          print('Searching for pygame...'); \
+          [print(f'Found pygame at: {os.path.join(sp, \"pygame\")}') for sp in site.getsitepackages() if os.path.exists(os.path.join(sp, 'pygame'))]"
     
     - name: Build with Extended Pygame Imports
       shell: cmd
       run: |
-        echo Building EXE with extended pygame support...
-        
         pyinstaller --onedir --name=MyApp ^
           --hidden-import=pygame ^
           --hidden-import=pygame.base ^
@@ -104,42 +80,23 @@ except ImportError as e:
     - name: Test the Built EXE
       shell: cmd
       run: |
-        echo Testing the built executable...
-        
         if exist dist\MyApp\MyApp.exe (
-          echo ✓ Executable exists
-          echo Running test...
-          
-          # Создаем тестовый скрипт для проверки
           cd dist\MyApp
-          echo import sys > test_import.py
-          echo print("Testing imports...") >> test_import.py
-          echo try: >> test_import.py
-          echo     import pygame >> test_import.py
-          echo     print('Pygame imported successfully') >> test_import.py
-          echo     print('Version:', pygame.version.ver) >> test_import.py
-          echo except Exception as e: >> test_import.py
-          echo     print('Error:', e) >> test_import.py
-          
-          python test_import.py
-          
-        ) else (
-          echo ✗ Executable not found!
-          echo Listing dist folder:
-          dir dist /s
+          echo import sys > test.py
+          echo try: >> test.py
+          echo     import pygame >> test.py
+          echo     print("Pygame OK:", pygame.version.ver) >> test.py
+          echo except Exception as e: >> test.py
+          echo     print("Error:", e) >> test.py
+          python test.py
         )
     
     - name: Create ZIP archive
       shell: cmd
       run: |
-        echo Creating ZIP archive...
-        
         if exist dist\MyApp (
           ren dist\MyApp MyApp-Windows
-          powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip' -Force"
-          echo ✓ Archive created: MyApp-Windows.zip
-        ) else (
-          echo ✗ ERROR: dist\MyApp folder not found!
+          powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip'"
         )
     
     - name: Upload artifacts

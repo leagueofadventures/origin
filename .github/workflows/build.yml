@@ -1,8 +1,8 @@
-name: Build Game with Tcl/Tk Fix
+name: Build Game Folder with Tcl/Tk Fix
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -19,24 +19,85 @@ jobs:
         python-version: '3.11'
     
     - name: Install dependencies
+      shell: cmd
       run: |
-        pip install pygame pytmx websocket-client requests pyinstaller
+        python -m pip install --upgrade pip
+        pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
+        if exist requirements.txt pip install -r requirements.txt
     
+    # 1. Собираем Game.exe
     - name: Build Game EXE
+      shell: cmd
       run: |
-        pyinstaller --onedir --name=main main.py
+        echo Building Game.exe...
+        pyinstaller --onedir --name=Game ^
+          --hidden-import=pygame ^
+          --hidden-import=pytmx ^
+          --hidden-import=websocket ^
+          --hidden-import=requests ^
+          --add-data="images;images" ^
+          --add-data="music;music" ^
+          --add-data="maps;maps" ^
+          --add-data="sprites;sprites" ^
+          main.py
     
-    - name: Build Launcher EXE
+    # 2. Собираем Launcher.exe с Tcl/Tk (без Python кода в YAML)
+    - name: Build Launcher EXE with Tcl/Tk
+      shell: cmd
       run: |
-        pyinstaller --onedir --name=League-of-Adventures launcher.py
+        echo Building Launcher.exe with Tcl/Tk support...
+        
+        # Используем простую команду Python без сложного форматирования
+        python -c "import tkinter; tcl = tkinter.Tcl(); print('TCL found')"
+        
+        pyinstaller --onedir --name=Launcher ^
+          --hidden-import=tkinter ^
+          --hidden-import=requests ^
+          --add-data="C:/hostedtoolcache/windows/Python/3.11.9/x64/tcl/*;tcl/" ^
+          --add-data="C:/hostedtoolcache/windows/Python/3.11.9/x64/tk/*;tk/" ^
+          launcher.py
     
-    - name: Create combined folder
+    # 3. Создаем папку Game с двумя EXE
+    - name: Create Game folder with both EXE
+      shell: cmd
       run: |
+        echo Creating Game folder with both EXE...
+        
+        # Создаем папку Game
         mkdir Game
-        cp -r dist/Game/* Game/
-        cp -r dist/Launcher/* Game/
+        
+        # Копируем ВСЕ из dist/Game в папку Game
+        if exist dist\Game (
+          xcopy dist\Game Game /E /I /Y
+          echo Copied Game.exe and all dependencies
+        )
+        
+        # Копируем Launcher.exe и ВСЕ его зависимости в ту же папку Game
+        if exist dist\Launcher (
+          xcopy dist\Launcher Game /E /I /Y
+          echo Copied Launcher.exe and all dependencies
+        )
+        
+        echo Structure of Game folder:
+        dir Game
     
-    - uses: actions/upload-artifact@v4
+    - name: Create ZIP archive
+      shell: cmd
+      run: |
+        echo Creating ZIP archive...
+        
+        if exist Game (
+          powershell -Command "Compress-Archive -Path 'Game\*' -DestinationPath 'Game-Windows.zip' -Force"
+          echo Archive created: Game-Windows.zip
+        ) else (
+          echo ERROR: Game folder not found!
+          exit 1
+        )
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
       with:
-        name: Game-Folder
-        path: Game/
+        name: Game-Folder-with-Two-EXE
+        path: |
+          Game-Windows.zip
+          Game/

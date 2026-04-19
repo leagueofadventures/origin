@@ -18,35 +18,117 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install ALL dependencies first
+    - name: Install with Force Reinstall
       shell: cmd
       run: |
         python -m pip install --upgrade pip
         
-        # Сначала устанавливаем ВСЕ зависимости из requirements.txt
+        # Удаляем и переустанавливаем pygame
+        pip uninstall pygame -y
+        pip uninstall pyinstaller -y
+        
+        # Устанавливаем конкретные версии
+        pip install pygame==2.5.2
+        pip install pyinstaller==5.13.0
+        
+        # Другие зависимости
         if exist requirements.txt (
           pip install -r requirements.txt
         )
-        
-        # Потом устанавливаем pyinstaller
-        pip install pyinstaller
     
-    - name: Build executable with resources
+    - name: Verify Pygame Installation
       shell: cmd
       run: |
-        echo Building EXE with resources...
+        echo Verifying pygame installation...
+        python -c "
+import sys
+print('Python path:')
+for p in sys.path:
+    print(f'  {p}')
+
+try:
+    import pygame
+    print(f'✓ Pygame imported: {pygame.version.ver}')
+    
+    # Проверяем где установлен pygame
+    import pygame as pg
+    print(f'Pygame location: {pg.__file__}')
+    
+except ImportError as e:
+    print(f'✗ Pygame import failed: {e}')
+    
+    # Пробуем найти pygame
+    import site
+    import os
+    
+    print('Searching for pygame...')
+    for site_package in site.getsitepackages():
+        pygame_path = os.path.join(site_package, 'pygame')
+        if os.path.exists(pygame_path):
+            print(f'Found pygame at: {pygame_path}')
+"
+    
+    - name: Build with Extended Pygame Imports
+      shell: cmd
+      run: |
+        echo Building EXE with extended pygame support...
         
         pyinstaller --onedir --name=MyApp ^
           --hidden-import=pygame ^
-          --hidden-import=pygame._sdl2 ^
-          --hidden-import=pygame.mixer ^
+          --hidden-import=pygame.base ^
+          --hidden-import=pygame.constants ^
+          --hidden-import=pygame.display ^
+          --hidden-import=pygame.draw ^
+          --hidden-import=pygame.event ^
           --hidden-import=pygame.font ^
+          --hidden-import=pygame.image ^
+          --hidden-import=pygame.joystick ^
+          --hidden-import=pygame.key ^
+          --hidden-import=pygame.mixer ^
+          --hidden-import=pygame.mixer.music ^
+          --hidden-import=pygame.mouse ^
+          --hidden-import=pygame.rect ^
+          --hidden-import=pygame.sprite ^
+          --hidden-import=pygame.surface ^
+          --hidden-import=pygame.time ^
+          --hidden-import=pygame.transform ^
+          --hidden-import=pygame._sdl2 ^
+          --hidden-import=pygame._sdl2.audio ^
+          --hidden-import=pygame._sdl2.video ^
           --collect-all=pygame ^
           --add-data="images/*;images/" ^
           --add-data="music/*;music/" ^
           --add-data="maps/*;maps/" ^
           --add-data="sprites/PNG/*;sprites/PNG/" ^
           main.py
+    
+    - name: Test the Built EXE
+      shell: cmd
+      run: |
+        echo Testing the built executable...
+        
+        if exist dist\MyApp\MyApp.exe (
+          echo ✓ Executable exists
+          echo Running test...
+          
+          # Создаем тестовый скрипт для проверки
+          cd dist\MyApp
+          echo import sys > test_import.py
+          echo print("Testing imports...") >> test_import.py
+          echo try: >> test_import.py
+          echo "    import pygame" >> test_import.py
+          echo "    print('Pygame imported successfully')" >> test_import.py
+          echo "    print('Version:', pygame.version.ver)" >> test_import.py
+          echo "except Exception as e:" >> test_import.py
+          echo "    print('Error:', e)" >> test_import.py
+          
+          python test_import.py
+          
+        ) else (
+          echo ✗ Executable not found!
+          echo Listing dist folder:
+          dir dist /s
+        )
     
     - name: Create ZIP archive
       shell: cmd
@@ -56,10 +138,9 @@ jobs:
         if exist dist\MyApp (
           ren dist\MyApp MyApp-Windows
           powershell -Command "Compress-Archive -Path 'dist\MyApp-Windows\*' -DestinationPath 'MyApp-Windows.zip' -Force"
-          echo Archive created successfully
+          echo ✓ Archive created: MyApp-Windows.zip
         ) else (
-          echo ERROR: dist\MyApp folder not found!
-          dir dist
+          echo ✗ ERROR: dist\MyApp folder not found!
         )
     
     - name: Upload artifacts

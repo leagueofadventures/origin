@@ -1,4 +1,4 @@
-name: Build League of Adventures Launcher
+name: Build Game and Launcher
 
 on:
   push:
@@ -25,64 +25,69 @@ jobs:
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
         if exist requirements.txt pip install -r requirements.txt
     
-    - name: Build Launcher EXE
+    # 1. Собираем ОСНОВНУЮ ИГРУ (main.py -> Game.exe)
+    - name: Build Main Game EXE
       shell: cmd
       run: |
-        echo Building League of Adventures Launcher...
+        echo Building Main Game EXE...
         
-        pyinstaller --onedir --name="LeagueOfAdventuresLauncher" ^
+        pyinstaller --onedir --name="LeagueOfAdventures" ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
           --hidden-import=websocket ^
-          --hidden-import=tkinter ^
           --hidden-import=requests ^
-          --hidden-import=requests.adapters ^
-          --hidden-import=requests.auth ^
-          --hidden-import=requests.certs ^
-          --hidden-import=requests.compat ^
-          --hidden-import=requests.cookies ^
-          --hidden-import=requests.exceptions ^
-          --hidden-import=requests.hooks ^
-          --hidden-import=requests.models ^
-          --hidden-import=requests.packages ^
-          --hidden-import=requests.sessions ^
-          --hidden-import=requests.status_codes ^
-          --hidden-import=requests.structures ^
-          --hidden-import=requests.utils ^
-          --add-data="main.py;." ^
           --add-data="images;images" ^
           --add-data="music;music" ^
           --add-data="maps;maps" ^
           --add-data="sprites;sprites" ^
-          launcher.py
+          main.py
     
-    - name: Create ZIP archive
+    # 2. Собираем ЛАУНЧЕР (launcher.py -> Launcher.exe)
+    - name: Build Launcher EXE
       shell: cmd
       run: |
-        echo Creating ZIP archive...
+        echo Building Launcher EXE...
         
-        if exist "dist\LeagueOfAdventuresLauncher" (
-          echo Found dist\LeagueOfAdventuresLauncher folder
-          
-          # Переименовываем папку
-          ren "dist\LeagueOfAdventuresLauncher" "LeagueOfAdventures-Windows"
-          echo Renamed to LeagueOfAdventures-Windows
-          
-          # Создаем ZIP
-          powershell -Command "Compress-Archive -Path 'dist\LeagueOfAdventures-Windows\*' -DestinationPath 'LeagueOfAdventures-Windows.zip' -Force"
-          
-          echo ✓ ZIP archive created
-        ) else (
-          echo ✗ ERROR: dist\LeagueOfAdventuresLauncher folder not found!
-          echo Listing dist folder:
-          dir dist
-          exit 1
+        pyinstaller --onedir --name="LeagueOfAdventuresLauncher" ^
+          --hidden-import=tkinter ^
+          --hidden-import=requests ^
+          launcher.py
+    
+    - name: Create combined ZIP archive
+      shell: cmd
+      run: |
+        echo Creating combined ZIP archive...
+        
+        # Создаем общую папку
+        mkdir LeagueOfAdventures-Complete
+        
+        # Копируем игру
+        if exist "dist\LeagueOfAdventures" (
+          xcopy "dist\LeagueOfAdventures" "LeagueOfAdventures-Complete\Game" /E /I /Y
+          echo Copied game files
         )
+        
+        # Копируем лаунчер
+        if exist "dist\LeagueOfAdventuresLauncher" (
+          xcopy "dist\LeagueOfAdventuresLauncher" "LeagueOfAdventures-Complete\Launcher" /E /I /Y
+          echo Copied launcher files
+        )
+        
+        # Создаем инструкцию
+        echo # League of Adventures > "LeagueOfAdventures-Complete\README.txt"
+        echo. >> "LeagueOfAdventures-Complete\README.txt"
+        echo Запустите Launcher.exe для запуска игры с обновлениями >> "LeagueOfAdventures-Complete\README.txt"
+        echo или Game.exe для запуска игры напрямую >> "LeagueOfAdventures-Complete\README.txt"
+        
+        # Создаем ZIP
+        powershell -Command "Compress-Archive -Path 'LeagueOfAdventures-Complete\*' -DestinationPath 'LeagueOfAdventures-Complete.zip' -Force"
+        
+        echo ✓ Combined archive created
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: LeagueOfAdventures-Launcher
+        name: LeagueOfAdventures-Complete
         path: |
-          LeagueOfAdventures-Windows.zip
-          dist/LeagueOfAdventures-Windows/
+          LeagueOfAdventures-Complete.zip
+          LeagueOfAdventures-Complete/

@@ -22,7 +22,7 @@ jobs:
       shell: cmd
       run: |
         python -m pip install --upgrade pip
-        pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client
+        pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
         if exist requirements.txt pip install -r requirements.txt
     
     - name: Build Launcher EXE
@@ -35,6 +35,20 @@ jobs:
           --hidden-import=pytmx ^
           --hidden-import=websocket ^
           --hidden-import=tkinter ^
+          --hidden-import=requests ^
+          --hidden-import=requests.adapters ^
+          --hidden-import=requests.auth ^
+          --hidden-import=requests.certs ^
+          --hidden-import=requests.compat ^
+          --hidden-import=requests.cookies ^
+          --hidden-import=requests.exceptions ^
+          --hidden-import=requests.hooks ^
+          --hidden-import=requests.models ^
+          --hidden-import=requests.packages ^
+          --hidden-import=requests.sessions ^
+          --hidden-import=requests.status_codes ^
+          --hidden-import=requests.structures ^
+          --hidden-import=requests.utils ^
           --add-data="main.py;." ^
           --add-data="images;images" ^
           --add-data="music;music" ^
@@ -49,7 +63,6 @@ jobs:
         
         if exist "dist\LeagueOfAdventuresLauncher" (
           echo Found dist\LeagueOfAdventuresLauncher folder
-          dir "dist\LeagueOfAdventuresLauncher"
           
           # Переименовываем папку
           ren "dist\LeagueOfAdventuresLauncher" "LeagueOfAdventures-Windows"
@@ -58,16 +71,12 @@ jobs:
           # Создаем ZIP
           powershell -Command "Compress-Archive -Path 'dist\LeagueOfAdventures-Windows\*' -DestinationPath 'LeagueOfAdventures-Windows.zip' -Force"
           
-          if exist "LeagueOfAdventures-Windows.zip" (
-            echo ✓ ZIP archive created: LeagueOfAdventures-Windows.zip
-            dir "LeagueOfAdventures-Windows.zip"
-          ) else (
-            echo ✗ Failed to create ZIP archive
-          )
+          echo ✓ ZIP archive created
         ) else (
           echo ✗ ERROR: dist\LeagueOfAdventuresLauncher folder not found!
           echo Listing dist folder:
           dir dist
+          exit 1
         )
     
     - name: Upload artifacts

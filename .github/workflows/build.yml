@@ -40,8 +40,7 @@ jobs:
       shell: cmd
       run: |
         echo Verifying pygame installation...
-        python -c "
-import sys
+        python -c "import sys
 print('Python path:')
 for p in sys.path:
     print(f'  {p}')
@@ -116,11 +115,11 @@ except ImportError as e:
           echo import sys > test_import.py
           echo print("Testing imports...") >> test_import.py
           echo try: >> test_import.py
-          echo "    import pygame" >> test_import.py
-          echo "    print('Pygame imported successfully')" >> test_import.py
-          echo "    print('Version:', pygame.version.ver)" >> test_import.py
-          echo "except Exception as e:" >> test_import.py
-          echo "    print('Error:', e)" >> test_import.py
+          echo     import pygame >> test_import.py
+          echo     print('Pygame imported successfully') >> test_import.py
+          echo     print('Version:', pygame.version.ver) >> test_import.py
+          echo except Exception as e: >> test_import.py
+          echo     print('Error:', e) >> test_import.py
           
           python test_import.py
           

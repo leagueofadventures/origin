@@ -1,3 +1,4 @@
+
 name: Build Game
 
 on:
@@ -39,7 +40,7 @@ jobs:
     - name: Build Game EXE
       shell: cmd
       run: |
-        pyinstaller --noconfirm --onedir --name=main ^
+        pyinstaller --noconfirm --onedir --name=Game ^
           --icon="images/icon.ico" ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
@@ -59,7 +60,7 @@ jobs:
         
         # Собираем лаунчер
         # Добавляем пути к Tcl/Tk библиотекам прямо в сборку через --add-data
-        pyinstaller --noconfirm --onedir --name=League-of-Adventures.Launcher `
+        pyinstaller --noconfirm --onedir --name=Launcher `
           --icon="images/icon.ico" `
           --hidden-import=tkinter `
           --hidden-import=requests `
@@ -76,15 +77,14 @@ jobs:
             xcopy "$pyPath\Lib\tkinter\tcl" "dist\Launcher\tcl\" /E /I /Y
             xcopy "$pyPath\Lib\tkinter\tk" "dist\Launcher\tk\" /E /I /Y
         }
-
     - name: Create Final Folder
       shell: cmd
       run: |
         mkdir Final_Release
         
-        :: Копируем Game 
-        if exist dist\Launcher (
-          xcopy dist\Game Final_Release /E /I /Y
+        :: Копируем Game (в отдельную подпапку)
+        if exist dist\Game (
+          xcopy dist\Game Final_Release\Game /E /I /Y
         )
         
         :: Копируем содержимое Launcher (в корень Final_Release)

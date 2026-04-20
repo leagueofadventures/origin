@@ -485,7 +485,7 @@ class Launcher:
         try:
             # Проверяем существование main.py
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            game_path = os.path.join(script_dir, "main.exe")
+            game_path = os.path.join(script_dir, 'Game', "main.exe")
             
             if not os.path.exists(game_path):
                 messagebox.showerror("Ошибка", f"Файл игры не найден: {game_path}")

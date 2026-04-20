@@ -82,9 +82,9 @@ jobs:
       run: |
         mkdir Final_Release
         
-        :: Копируем Game (в отдельную подпапку)
+        :: Копируем Game 
         if exist dist\Game (
-          xcopy dist\Game Final_Release\Game /E /I /Y
+          xcopy dist\Game Final_Release /E /I /Y
         )
         
         :: Копируем содержимое Launcher (в корень Final_Release)

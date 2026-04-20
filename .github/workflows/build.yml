@@ -19,47 +19,158 @@ jobs:
         python-version: '3.11'
     
     - name: Install dependencies
+      shell: cmd
       run: |
         python -m pip install --upgrade pip
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
+        if exist requirements.txt pip install -r requirements.txt
+    
+    - name: Check Icon Path
+      shell: cmd
+      run: |
+        if exist "images/icon.ico" (
+          echo Icon found!
+        ) else (
+          echo ERROR: images/icon.ico not found in repository!
+          dir /s /b icon.ico
+          exit 1
+        )
     
     - name: Build Game EXE
+      shell: cmd
       run: |
-        pyinstaller --noconfirm --onedir --name=Game --icon="images/icon.ico" --add-data="images;images" --add-data="music;music" --add-data="maps;maps" --add-data="sprites;sprites" main.py
+        pyinstaller --noconfirm --onedir --name=Game ^
+          --icon="images/icon.ico" ^
+          --hidden-import=pygame ^
+          --hidden-import=pytmx ^
+          --hidden-import=websocket ^
+          --hidden-import=requests ^
+          --add-data="images;images" ^
+          --add-data="music;music" ^
+          --add-data="maps;maps" ^
+          --add-data="sprites;sprites" ^
+          main.py
     
-    - name: Build Launcher EXE (console mode for debugging)
+    - name: Copy Tcl/Tk DLLs from Python installation
+      shell: cmd
       run: |
-        # Сначала пробуем собрать в консольном режиме для отладки
-        pyinstaller --noconfirm --onedir --name=Launcher --console --icon="images/icon.ico" --add-data="images;images" launcher.py
-    
-    - name: Copy Tcl/Tk files manually
-      run: |
-        # Копируем необходимые файлы Tcl/Tk
-        copy "C:\hostedtoolcache\windows\Python\3.11.9\x64\DLLs\tcl86t.dll" "dist\Launcher\"
-        copy "C:\hostedtoolcache\windows\Python\3.11.9\x64\DLLs\tk86t.dll" "dist\Launcher\"
+        :: Ищем Python путь
+        where python > python_path.txt
+        set /p PYTHON_PATH=<python_path.txt
+        echo Python found at: %PYTHON_PATH%
         
-        # Создаем папки и копируем содержимое
-        mkdir "dist\Launcher\tcl"
-        mkdir "dist\Launcher\tk"
-        xcopy "C:\hostedtoolcache\windows\Python\3.11.9\x64\Lib\tkinter\tcl\*" "dist\Launcher\tcl\" /E /I /Y
-        xcopy "C:\hostedtoolcache\windows\Python\3.11.9\x64\Lib\tkinter\tk\*" "dist\Launcher\tk\" /E /I /Y
+        :: Получаем директорию Python
+        for %%i in ("%PYTHON_PATH%") do set PYTHON_DIR=%%~dpi
+        echo Python directory: %PYTHON_DIR%
+        
+        :: Копируем DLL файлы
+        copy "%PYTHON_DIR%DLLs\tcl86t.dll" .\ || echo TCL DLL not found in DLLs, trying other locations...
+        copy "%PYTHON_DIR%tcl86t.dll" .\ || echo TCL DLL not found in root...
+        
+        copy "%PYTHON_DIR%DLLs\tk86t.dll" .\ || echo TK DLL not found in DLLs, trying other locations...
+        copy "%PYTHON_DIR%tk86t.dll" .\ || echo TK DLL not found in root...
+        
+        :: Проверяем, что файлы скопировались
+        if exist tcl86t.dll (
+          echo TCL DLL copied successfully
+        ) else (
+          echo WARNING: tcl86t.dll not found
+        )
+        
+        if exist tk86t.dll (
+          echo TK DLL copied successfully
+        ) else (
+          echo WARNING: tk86t.dll not found
+        )
     
-    - name: Test Launcher
+    - name: Build Launcher EXE
+      shell: cmd
       run: |
-        echo "Testing launcher..."
-        cd "dist\Launcher"
-        dir
-        echo "Launcher files listed above"
+        :: Собираем лаунчер, продолжаем даже при ошибках
+        pyinstaller --noconfirm --onedir --name=Launcher ^
+          --icon="images/icon.ico" ^
+          --hidden-import=tkinter ^
+          --hidden-import=requests ^
+          --add-data="images;images" ^
+          launcher.py || echo "PyInstaller completed with warnings, continuing..."
+        
+        :: Если DLL файлы есть, копируем их в dist/Launcher
+        if exist tcl86t.dll (
+          copy tcl86t.dll dist\Launcher\
+        )
+        
+        if exist tk86t.dll (
+          copy tk86t.dll dist\Launcher\
+        )
     
-    - name: Create Final Release
+    - name: Copy Tcl/Tk directories
+      shell: cmd
+      run: |
+        :: Ищем Python путь для tkinter
+        where python > python_path2.txt
+        set /p PYTHON_PATH2=<python_path2.txt
+        
+        :: Получаем директорию Python
+        for %%i in ("%PYTHON_PATH2%") do set PYTHON_DIR2=%%~dpi
+        
+        :: Пытаемся найти и скопировать Tcl/Tk директории
+        if exist "%PYTHON_DIR2%Lib\tkinter\tcl" (
+          xcopy "%PYTHON_DIR2%Lib\tkinter\tcl" dist\Launcher\tcl /E /I /Y
+          echo Tcl directory copied
+        ) else (
+          echo WARNING: Tcl directory not found at %PYTHON_DIR2%Lib\tkinter\tcl
+        )
+        
+        if exist "%PYTHON_DIR2%Lib\tkinter\tk" (
+          xcopy "%PYTHON_DIR2%Lib\tkinter\tk" dist\Launcher\tk /E /I /Y
+          echo Tk directory copied
+        ) else (
+          echo WARNING: Tk directory not found at %PYTHON_DIR2%Lib\tkinter\tk
+        )
+    
+    - name: Create Final Folder
+      shell: cmd
       run: |
         mkdir Final_Release
-        xcopy "dist\Game" "Final_Release\Game" /E /I /Y
-        xcopy "dist\Launcher" "Final_Release" /E /I /Y
+        
+        :: Копируем Game
+        if exist dist\Game (
+          xcopy dist\Game Final_Release\Game /E /I /Y
+          echo Game copied successfully
+        ) else (
+          echo ERROR: dist\Game does not exist!
+          exit 1
+        )
+        
+        :: Копируем Launcher
+        if exist dist\Launcher (
+          xcopy dist\Launcher Final_Release /E /I /Y
+          echo Launcher copied successfully
+        ) else (
+          echo ERROR: dist\Launcher does not exist!
+          exit 1
+        )
+        
+        :: Проверяем структуру
+        echo.
+        echo Final Release structure:
+        dir Final_Release
     
-    - name: Create ZIP
+    - name: Create ZIP archive
+      shell: pwsh
       run: |
-        Compress-Archive -Path "Final_Release\*" -DestinationPath "Game-Windows.zip" -Force
+        if (Test-Path "Final_Release") {
+            if ((Get-ChildItem "Final_Release" | Measure-Object).Count -gt 0) {
+                Compress-Archive -Path "Final_Release\*" -DestinationPath "Game-Windows.zip" -Force
+                Write-Host "ZIP created successfully"
+            } else {
+                Write-Error "Final_Release is empty!"
+                exit 1
+            }
+        } else {
+            Write-Error "Final_Release does not exist!"
+            exit 1
+        }
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

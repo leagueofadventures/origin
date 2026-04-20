@@ -22,8 +22,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
         if exist requirements.txt pip install -r requirements.txt
-
-    # ПРОВЕРКА: Есть ли файл иконки на самом деле?
+    
     - name: Check Icon Path
       shell: cmd
       run: |
@@ -38,7 +37,7 @@ jobs:
     - name: Build Game EXE
       shell: cmd
       run: |
-        pyinstaller --noconfirm --onedir --name=main ^
+        pyinstaller --noconfirm --onedir --name=Game ^
           --icon="images/icon.ico" ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
@@ -53,10 +52,18 @@ jobs:
     - name: Build Launcher EXE
       shell: cmd
       run: |
-        pyinstaller --noconfirm --onedir --name=League-of-Adventures-Launcher ^
+        :: Сначала находим путь к Tcl/Tk
+        python -c "import tkinter; import os; tcl_dir = os.path.join(os.path.dirname(tkinter.__file__), 'tcl'); tk_dir = os.path.join(os.path.dirname(tkinter.__file__), 'tk'); print(f'TCL: {tcl_dir}'); print(f'TK: {tk_dir}')"
+        
+        :: Собираем лаунчер с явным указанием Tcl/Tk
+        pyinstaller --noconfirm --onedir --name=Launcher ^
           --icon="images/icon.ico" ^
           --hidden-import=tkinter ^
           --hidden-import=requests ^
+          --add-data="images;images" ^
+          --add-data="tcl86t.dll;." ^
+          --add-data="tk86t.dll;." ^
+          --collect-all tkinter ^
           launcher.py
     
     - name: Create Final Folder
@@ -64,25 +71,27 @@ jobs:
       run: |
         mkdir Final_Release
         
-        :: Копируем Game (если собралось)
+        :: Копируем Game
         if exist dist\Game (
-          xcopy dist\Game Final_Release /E /I /Y
+          xcopy dist\Game Final_Release\Game /E /I /Y
         ) else (
           echo ERROR: dist\Game does not exist!
           exit 1
         )
         
-        :: Копируем Launcher и зависимости TK
-        if exist dist\Launcher\Launcher.exe (
-          copy dist\Launcher\Launcher.exe Final_Release\Launcher.exe
-          if exist dist\Launcher\tcl xcopy dist\Launcher\tcl Final_Release\tcl /E /I /Y
-          if exist dist\Launcher\tk xcopy dist\Launcher\tk Final_Release\tk /E /I /Y
-          xcopy dist\Launcher\*.dll Final_Release\ /Y /D
+        :: Копируем Launcher и ВСЕ его зависимости
+        if exist dist\Launcher (
+          xcopy dist\Launcher Final_Release /E /I /Y
         ) else (
-          echo ERROR: Launcher.exe not found!
+          echo ERROR: dist\Launcher does not exist!
           exit 1
         )
-
+        
+        :: Проверяем наличие Tcl/Tk файлов
+        echo Checking Tcl/Tk files...
+        dir Final_Release\tcl /s
+        dir Final_Release\tk /s
+        
     - name: Create ZIP archive
       shell: pwsh
       run: |
@@ -94,9 +103,9 @@ jobs:
             Write-Error "Final_Release is empty or does not exist!"
             exit 1
         }
-
+    
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: Game-Full-Build
-        path: Game-Windows.zip
+        path: Game-Windows.zip 

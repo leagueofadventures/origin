@@ -40,7 +40,7 @@ jobs:
     - name: Build Game EXE
       shell: cmd
       run: |
-        pyinstaller --noconfirm --onedir --name=Game ^
+        pyinstaller --noconfirm --onedir --name=main ^
           --icon="images/icon.ico" ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
@@ -83,8 +83,8 @@ jobs:
         mkdir Final_Release
         
         :: Копируем Game 
-        if exist dist\Game (
-          xcopy dist\Game Final_Release /E /I /Y
+        if exist dist\main (
+          xcopy dist\main Final_Release /E /I /Y
         )
         
         :: Копируем содержимое Launcher (в корень Final_Release)
@@ -108,5 +108,5 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Game-Full-Build
+        name: League of Adventures
         path: Game-Windows.zip

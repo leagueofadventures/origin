@@ -25,12 +25,13 @@ jobs:
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
         if exist requirements.txt pip install -r requirements.txt
     
-    # 1. Собираем Game.exe
+    # 1. Собираем Game.exe с иконкой
     - name: Build Game EXE
       shell: cmd
       run: |
-        echo Building Game.exe...
-        pyinstaller --onedir --name=Game ^
+        echo Building main.exe...
+        pyinstaller --onedir --name=main ^
+          --icon="images/icon.ico" ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
           --hidden-import=websocket ^
@@ -41,64 +42,56 @@ jobs:
           --add-data="sprites;sprites" ^
           main.py
     
-    # 2. Собираем Launcher.exe  
+    # 2. Собираем Launcher.exe с иконкой
     - name: Build Launcher EXE
       shell: cmd
       run: |
         echo Building Launcher.exe...
-        pyinstaller --onedir --name=Launcher ^
+        pyinstaller --onedir --name=League-of-Adventures ^
+          --icon="images/icon.ico" ^
           --hidden-import=tkinter ^
           --hidden-import=requests ^
           launcher.py
     
-    # 3. Создаем папку Game с двумя EXE
+    # 3. Объединяем всё в одну папку и фиксим ошибку TK
     - name: Create Game folder with both EXE
       shell: cmd
       run: |
-        echo Creating Game folder with both EXE...
+        echo Creating Final Release Folder...
         
-        # Создаем папку Game
-        mkdir Game
+        if not exist Game mkdir Game
         
-        # Копируем ВСЕ из dist/Game в папку Game
+        :: 1. Копируем всё из сборки основной игры
         if exist dist\Game (
           xcopy dist\Game Game /E /I /Y
-          echo Copied Game.exe and all dependencies
         )
         
-        # Копируем Launcher.exe в ту же папку Game
+        :: 2. Копируем только исполняемый файл лаунчера
         if exist dist\Launcher\Launcher.exe (
           copy dist\Launcher\Launcher.exe Game\Launcher.exe
-          echo Copied Launcher.exe to Game folder
         )
         
-        # Копируем общие DLL если нужно
-        if not exist Game\python311.dll (
-          if exist dist\Launcher\python311.dll (
-            copy dist\Launcher\python311.dll Game\
-          )
+        :: 3. ИСПРАВЛЕНИЕ ОШИБКИ TK: Копируем папки tcl и tk из дистрибутива лаунчера
+        if exist dist\Launcher\tcl (
+          xcopy dist\Launcher\tcl Game\tcl /E /I /Y
+        )
+        if exist dist\Launcher\tk (
+          xcopy dist\Launcher\tk Game\tk /E /I /Y
         )
         
-        echo Structure of Game folder:
+        :: 4. Докопируем DLL, которые могли понадобиться лаунчеру (включая tcl86t.dll и т.д.)
+        xcopy dist\Launcher\*.dll Game\ /Y /D
+        
+        echo Final folder structure:
         dir Game
     
     - name: Create ZIP archive
       shell: cmd
       run: |
-        echo Creating ZIP archive...
-        
-        if exist Game (
-          powershell -Command "Compress-Archive -Path 'Game\*' -DestinationPath 'Game-Windows.zip' -Force"
-          echo Archive created: Game-Windows.zip
-        ) else (
-          echo ERROR: Game folder not found!
-          exit 1
-        )
+        powershell -Command "Compress-Archive -Path 'Game\*' -DestinationPath 'Game-Windows.zip' -Force"
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: Game-Folder-with-Two-EXE
-        path: |
-          Game-Windows.zip
-          Game/
+        name: Game-Full-Build
+        path: Game-Windows.zip

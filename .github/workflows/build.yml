@@ -11,10 +11,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4 # Это актуальная версия
     
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5 # Обновил до v5 (поддерживает Node 20+)
       with:
         python-version: '3.11'
     
@@ -25,11 +25,9 @@ jobs:
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
         if exist requirements.txt pip install -r requirements.txt
     
-    # 1. Собираем Game.exe с иконкой
     - name: Build Game EXE
       shell: cmd
       run: |
-        echo Building main.exe...
         pyinstaller --onedir --name=main ^
           --icon="images/icon.ico" ^
           --hidden-import=pygame ^
@@ -42,56 +40,48 @@ jobs:
           --add-data="sprites;sprites" ^
           main.py
     
-    # 2. Собираем Launcher.exe с иконкой
     - name: Build Launcher EXE
       shell: cmd
       run: |
-        echo Building Launcher.exe...
-        pyinstaller --onedir --name=League-of-Adventures ^
+        pyinstaller --onedir --name=League-of-Adventures-Launcher ^
           --icon="images/icon.ico" ^
           --hidden-import=tkinter ^
           --hidden-import=requests ^
           launcher.py
     
-    # 3. Объединяем всё в одну папку и фиксим ошибку TK
     - name: Create Game folder with both EXE
       shell: cmd
       run: |
-        echo Creating Final Release Folder...
+        if not exist Final_Release mkdir Final_Release
         
-        if not exist Game mkdir Game
-        
-        :: 1. Копируем всё из сборки основной игры
+        :: Копируем основные файлы игры
         if exist dist\Game (
-          xcopy dist\Game Game /E /I /Y
+          xcopy dist\Game Final_Release /E /I /Y
         )
         
-        :: 2. Копируем только исполняемый файл лаунчера
+        :: Добавляем лаунчер и его зависимости для TK
         if exist dist\Launcher\Launcher.exe (
-          copy dist\Launcher\Launcher.exe Game\Launcher.exe
+          copy dist\Launcher\Launcher.exe Final_Release\Launcher.exe
         )
-        
-        :: 3. ИСПРАВЛЕНИЕ ОШИБКИ TK: Копируем папки tcl и tk из дистрибутива лаунчера
         if exist dist\Launcher\tcl (
-          xcopy dist\Launcher\tcl Game\tcl /E /I /Y
+          xcopy dist\Launcher\tcl Final_Release\tcl /E /I /Y
         )
         if exist dist\Launcher\tk (
-          xcopy dist\Launcher\tk Game\tk /E /I /Y
+          xcopy dist\Launcher\tk Final_Release\tk /E /I /Y
         )
+        xcopy dist\Launcher\*.dll Final_Release\ /Y /D
         
-        :: 4. Докопируем DLL, которые могли понадобиться лаунчеру (включая tcl86t.dll и т.д.)
-        xcopy dist\Launcher\*.dll Game\ /Y /D
-        
-        echo Final folder structure:
-        dir Game
-    
+        dir Final_Release
+
     - name: Create ZIP archive
-      shell: cmd
+      shell: pwsh # Используем PowerShell Core для надежности
       run: |
-        powershell -Command "Compress-Archive -Path 'Game\*' -DestinationPath 'Game-Windows.zip' -Force"
-    
+        Compress-Archive -Path "Final_Release\*" -DestinationPath "Game-Windows.zip" -Force
+        if (Test-Path "Game-Windows.zip") { Write-Host "ZIP created successfully" } else { throw "ZIP creation failed" }
+
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v4 # v4 — самая новая
       with:
         name: Game-Full-Build
         path: Game-Windows.zip
+        if-no-files-found: error

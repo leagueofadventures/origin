@@ -483,89 +483,34 @@ class Launcher:
         self.update_status("Запуск игры...")
         
         try:
-            # Определяем путь к Game.exe
-            if getattr(sys, 'frozen', False):
-                # Если запущен как EXE
-                base_dir = os.path.dirname(sys.executable)
-            else:
-                # Если запущен как Python скрипт
-                base_dir = os.path.dirname(os.path.abspath(__file__))
+            # Проверяем существование main.py
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            game_path = os.path.join(script_dir, 'Game', "main.py")
             
-            # Пробуем разные возможные пути
-            possible_paths = [
-                os.path.join(base_dir, "Game", "Game.exe"),      # Основной путь
-                os.path.join(base_dir, "Game", "main.exe"),      # Альтернативное имя
-                os.path.join(base_dir, "main.exe"),              # Если в той же папке
-                os.path.join(base_dir, "dist", "Game", "Game.exe"),  # Для разработки
-            ]
-            
-            game_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    game_path = path
-                    break
-            
-            if not game_path:
-                # Показываем содержимое папки для отладки
-                error_msg = f"Файл игры не найден!\n\n"
-                error_msg += f"Искали в: {base_dir}\n"
-                error_msg += f"Содержимое папки:\n"
-                
-                try:
-                    for item in os.listdir(base_dir):
-                        error_msg += f"  {item}\n"
-                        if os.path.isdir(os.path.join(base_dir, item)):
-                            try:
-                                subitems = os.listdir(os.path.join(base_dir, item))
-                                error_msg += f"    {item}/: {', '.join(subitems[:5])}"
-                                if len(subitems) > 5:
-                                    error_msg += f"... (еще {len(subitems)-5})"
-                                error_msg += "\n"
-                            except:
-                                pass
-                except Exception as e:
-                    error_msg += f"Ошибка при чтении папки: {e}\n"
-                
-                messagebox.showerror("Ошибка", error_msg)
+            if not os.path.exists(game_path):
+                messagebox.showerror("Ошибка", f"Файл игры не найден: {game_path}")
                 self.update_status("Файл игры не найден", True)
                 return
-    
+
             # Подготавливаем окружение
             env = os.environ.copy()
             if self.token:
                 env["GAME_TOKEN"] = self.token
             
-            # Подготавливаем аргументы для сервера
-            server_url = SERVER_HOST.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
-            
-            # Запускаем игру напрямую
-            print(f"Запуск игры: {game_path}")
-            print(f"Рабочая директория: {os.path.dirname(game_path)}")
-            print(f"Сервер: {server_url}")
-            
             # Запускаем игру
-            process = subprocess.Popen(
-                [game_path, "--server", server_url],
-                cwd=os.path.dirname(game_path),  # Устанавливаем рабочую директорию
-                env=env,
-                shell=False  # Важно: shell=False
-            )
+            subprocess.Popen([
+                sys.executable, 
+                game_path, 
+                "--server", 
+                SERVER_HOST.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
+            ], env=env)
             
-            print(f"Игра запущена с PID: {process.pid}")
             self.update_status("Игра запущена!")
             
-            # Закрываем лаунчер через 2 секунды
-            self.root.after(2000, self.safe_exit)
-            
         except Exception as e:
-            error_msg = f"Не удалось запустить игру: {e}\n\n"
-            error_msg += f"Тип ошибки: {type(e).__name__}\n"
-            import traceback
-            error_msg += f"Трассировка:\n{traceback.format_exc()}"
-            
-            messagebox.showerror("Ошибка", error_msg)
+            messagebox.showerror("Ошибка", f"Не удалось запустить игру: {e}")
             self.update_status("Ошибка запуска", True)
-        
+
     def set_buttons_state(self, enabled):
         """Включает/отключает кнопки"""
         state = "normal" if enabled else "disabled"
@@ -577,3 +522,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     launcher = Launcher(root)
     root.mainloop()
+вот код лаунчера, если сможешь, в этом коде исправь ошибку

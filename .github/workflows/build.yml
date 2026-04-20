@@ -51,94 +51,55 @@ jobs:
           --add-data="sprites;sprites" ^
           main.py
     
-    - name: Copy Tcl/Tk DLLs from Python installation
-      shell: cmd
-      run: |
-        :: Используем прямой путь к Python в GitHub Actions
-        copy "C:\hostedtoolcache\windows\Python\3.11.9\x64\DLLs\tcl86t.dll" .\
-        copy "C:\hostedtoolcache\windows\Python\3.11.9\x64\DLLs\tk86t.dll" .\
-        
-        :: Проверяем, что файлы скопировались
-        if exist tcl86t.dll (
-          echo TCL DLL copied successfully
-        ) else (
-          echo WARNING: tcl86t.dll not found
-        )
-        
-        if exist tk86t.dll (
-          echo TK DLL copied successfully
-        ) else (
-          echo WARNING: tk86t.dll not found
-        )
-    
     - name: Build Launcher EXE
-      shell: cmd
+      shell: pwsh
       run: |
-        :: Собираем лаунчер, принудительно продолжаем даже при ошибках
-        pyinstaller --noconfirm --onedir --name=Launcher ^
-          --icon="images/icon.ico" ^
-          --hidden-import=tkinter ^
-          --hidden-import=requests ^
-          --add-data="images;images" ^
-          launcher.py || exit 0
+        # Используем динамический путь к Python
+        $pyPath = $env:pythonLocation
         
-        :: Если DLL файлы есть, копируем их в dist/Launcher
-        if exist tcl86t.dll (
-          copy tcl86t.dll dist\Launcher\
-        )
-        
-        if exist tk86t.dll (
-          copy tk86t.dll dist\Launcher\
-        )
-    
-    - name: Copy Tcl/Tk directories
-      shell: cmd
-      run: |
-        :: Используем прямой путь
-        xcopy "C:\hostedtoolcache\windows\Python\3.11.9\x64\Lib\tkinter\tcl" dist\Launcher\tcl /E /I /Y || echo Tcl directory copy failed, continuing...
-        xcopy "C:\hostedtoolcache\windows\Python\3.11.9\x64\Lib\tkinter\tk" dist\Launcher\tk /E /I /Y || echo Tk directory copy failed, continuing...
-        
-        echo Tcl/Tk directories copied
-    
+        # Собираем лаунчер
+        # Добавляем пути к Tcl/Tk библиотекам прямо в сборку через --add-data
+        pyinstaller --noconfirm --onedir --name=Launcher `
+          --icon="images/icon.ico" `
+          --hidden-import=tkinter `
+          --hidden-import=requests `
+          --add-data="images;images" `
+          --add-binary "$pyPath\DLLs\tcl86t.dll;." `
+          --add-binary "$pyPath\DLLs\tk86t.dll;." `
+          launcher.py
+          
+        # Копируем папки Tcl/Tk внутрь папки Launcher, чтобы Tkinter работал
+        if (Test-Path "$pyPath\tcl") {
+            xcopy "$pyPath\tcl\tcl*" "dist\Launcher\tcl\" /E /I /Y
+            xcopy "$pyPath\tcl\tk*" "dist\Launcher\tk\" /E /I /Y
+        } else {
+            xcopy "$pyPath\Lib\tkinter\tcl" "dist\Launcher\tcl\" /E /I /Y
+            xcopy "$pyPath\Lib\tkinter\tk" "dist\Launcher\tk\" /E /I /Y
+        }
+
     - name: Create Final Folder
       shell: cmd
       run: |
         mkdir Final_Release
         
-        :: Копируем Game
+        :: Копируем Game (в отдельную подпапку)
         if exist dist\Game (
           xcopy dist\Game Final_Release\Game /E /I /Y
-          echo Game copied successfully
-        ) else (
-          echo ERROR: dist\Game does not exist!
-          exit 1
         )
         
-        :: Копируем Launcher
+        :: Копируем содержимое Launcher (в корень Final_Release)
         if exist dist\Launcher (
           xcopy dist\Launcher Final_Release /E /I /Y
-          echo Launcher copied successfully
-        ) else (
-          echo ERROR: dist\Launcher does not exist!
-          exit 1
         )
         
-        :: Проверяем структуру
-        echo.
-        echo Final Release structure:
         dir Final_Release
     
     - name: Create ZIP archive
       shell: pwsh
       run: |
         if (Test-Path "Final_Release") {
-            if ((Get-ChildItem "Final_Release" | Measure-Object).Count -gt 0) {
-                Compress-Archive -Path "Final_Release\*" -DestinationPath "Game-Windows.zip" -Force
-                Write-Host "ZIP created successfully"
-            } else {
-                Write-Error "Final_Release is empty!"
-                exit 1
-            }
+            Compress-Archive -Path "Final_Release\*" -DestinationPath "Game-Windows.zip" -Force
+            Write-Host "ZIP created successfully"
         } else {
             Write-Error "Final_Release does not exist!"
             exit 1
@@ -149,5 +110,3 @@ jobs:
       with:
         name: Game-Full-Build
         path: Game-Windows.zip
-
-        

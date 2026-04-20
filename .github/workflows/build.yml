@@ -1,3 +1,5 @@
+name: Build Game
+
 on:
   push:
     branches: [ main ]
@@ -49,104 +51,82 @@ jobs:
           --add-data="sprites;sprites" ^
           main.py
     
-    - name: Find Tcl/Tk DLLs
+    - name: Copy Tcl/Tk DLLs from Python installation
       shell: cmd
       run: |
-        :: Находим пути к DLL файлам Tcl/Tk
-        python -c "
-import os
-import sys
-import glob
-
-# Ищем в стандартных путях Python
-python_path = sys.exec_prefix
-print(f'Python prefix: {python_path}')
-
-# Ищем DLL файлы
-search_paths = [
-    python_path,
-    os.path.join(python_path, 'DLLs'),
-    os.path.join(python_path, 'Library', 'bin'),
-    os.path.join(os.path.dirname(python_path), 'DLLs'),
-]
-
-for path in search_paths:
-    if os.path.exists(path):
-        print(f'\nSearching in: {path}')
-        tcl_dlls = glob.glob(os.path.join(path, 'tcl*.dll'))
-        tk_dlls = glob.glob(os.path.join(path, 'tk*.dll'))
+        :: Ищем Python путь
+        where python > python_path.txt
+        set /p PYTHON_PATH=<python_path.txt
+        echo Python found at: %PYTHON_PATH%
         
-        if tcl_dlls:
-            print(f'Found TCL DLLs: {tcl_dlls}')
-        if tk_dlls:
-            print(f'Found TK DLLs: {tk_dlls}')
+        :: Получаем директорию Python
+        for %%i in ("%PYTHON_PATH%") do set PYTHON_DIR=%%~dpi
+        echo Python directory: %PYTHON_DIR%
         
-        # Копируем первый найденный файл
-        if tcl_dlls:
-            import shutil
-            shutil.copy2(tcl_dlls[0], 'tcl86t.dll')
-            print(f'Copied: {tcl_dlls[0]} -> tcl86t.dll')
+        :: Копируем DLL файлы
+        copy "%PYTHON_DIR%DLLs\tcl86t.dll" .\ || echo TCL DLL not found in DLLs, trying other locations...
+        copy "%PYTHON_DIR%tcl86t.dll" .\ || echo TCL DLL not found in root...
         
-        if tk_dlls:
-            import shutil
-            shutil.copy2(tk_dlls[0], 'tk86t.dll')
-            print(f'Copied: {tk_dlls[0]} -> tk86t.dll')
-"
+        copy "%PYTHON_DIR%DLLs\tk86t.dll" .\ || echo TK DLL not found in DLLs, trying other locations...
+        copy "%PYTHON_DIR%tk86t.dll" .\ || echo TK DLL not found in root...
+        
+        :: Проверяем, что файлы скопировались
+        if exist tcl86t.dll (
+          echo TCL DLL copied successfully
+        ) else (
+          echo WARNING: tcl86t.dll not found
+        )
+        
+        if exist tk86t.dll (
+          echo TK DLL copied successfully
+        ) else (
+          echo WARNING: tk86t.dll not found
+        )
     
     - name: Build Launcher EXE
       shell: cmd
       run: |
-        :: Проверяем, что DLL файлы существуют
-        if exist tcl86t.dll (
-          echo TCL DLL found
-        ) else (
-          echo ERROR: tcl86t.dll not found!
-          exit 1
-        )
-        
-        if exist tk86t.dll (
-          echo TK DLL found
-        ) else (
-          echo ERROR: tk86t.dll not found!
-          exit 1
-        )
-        
         :: Собираем лаунчер
         pyinstaller --noconfirm --onedir --name=Launcher ^
           --icon="images/icon.ico" ^
           --hidden-import=tkinter ^
           --hidden-import=requests ^
           --add-data="images;images" ^
-          --add-data="tcl86t.dll;." ^
-          --add-data="tk86t.dll;." ^
           launcher.py
+        
+        :: Если DLL файлы есть, копируем их в dist/Launcher
+        if exist tcl86t.dll (
+          copy tcl86t.dll dist\Launcher\
+        )
+        
+        if exist tk86t.dll (
+          copy tk86t.dll dist\Launcher\
+        )
     
     - name: Copy Tcl/Tk directories
       shell: cmd
       run: |
-        :: Копируем Tcl/Tk директории
-        python -c "
-import os
-import shutil
-import tkinter
-
-# Находим пути к Tcl/Tk
-tkinter_dir = os.path.dirname(tkinter.__file__)
-tcl_dir = os.path.join(tkinter_dir, 'tcl')
-tk_dir = os.path.join(tkinter_dir, 'tk')
-
-print(f'Tcl directory: {tcl_dir}')
-print(f'Tk directory: {tk_dir}')
-
-# Копируем в dist/Launcher
-dest_dir = 'dist/Launcher'
-if os.path.exists(tcl_dir):
-    shutil.copytree(tcl_dir, os.path.join(dest_dir, 'tcl'), dirs_exist_ok=True)
-    print('Tcl directory copied')
-if os.path.exists(tk_dir):
-    shutil.copytree(tk_dir, os.path.join(dest_dir, 'tk'), dirs_exist_ok=True)
-    print('Tk directory copied')
-"
+        :: Ищем Python путь для tkinter
+        where python > python_path2.txt
+        set /p PYTHON_PATH2=<python_path2.txt
+        
+        :: Получаем директорию Python
+        for %%i in ("%PYTHON_PATH2%") do set PYTHON_DIR2=%%~dpi
+        
+        :: Пытаемся найти и скопировать Tcl/Tk директории
+        if exist "%PYTHON_DIR2%Lib\tkinter\tcl" (
+          xcopy "%PYTHON_DIR2%Lib\tkinter\tcl" dist\Launcher\tcl /E /I /Y
+          echo Tcl directory copied
+        ) else (
+          echo WARNING: Tcl directory not found at %PYTHON_DIR2%Lib\tkinter\tcl
+        )
+        
+        if exist "%PYTHON_DIR2%Lib\tkinter\tk" (
+          xcopy "%PYTHON_DIR2%Lib\tkinter\tk" dist\Launcher\tk /E /I /Y
+          echo Tk directory copied
+        ) else (
+          echo WARNING: Tk directory not found at %PYTHON_DIR2%Lib\tkinter\tk
+        )
     
     - name: Create Final Folder
       shell: cmd
@@ -156,6 +136,7 @@ if os.path.exists(tk_dir):
         :: Копируем Game
         if exist dist\Game (
           xcopy dist\Game Final_Release\Game /E /I /Y
+          echo Game copied successfully
         ) else (
           echo ERROR: dist\Game does not exist!
           exit 1
@@ -164,24 +145,30 @@ if os.path.exists(tk_dir):
         :: Копируем Launcher
         if exist dist\Launcher (
           xcopy dist\Launcher Final_Release /E /I /Y
+          echo Launcher copied successfully
         ) else (
           echo ERROR: dist\Launcher does not exist!
           exit 1
         )
         
         :: Проверяем структуру
+        echo.
         echo Final Release structure:
-        dir Final_Release /s
-        
+        dir Final_Release
+    
     - name: Create ZIP archive
       shell: pwsh
       run: |
-        $path = "Final_Release"
-        if ((Test-Path $path) -and (Get-ChildItem $path)) {
-            Compress-Archive -Path "Final_Release\*" -DestinationPath "Game-Windows.zip" -Force
-            Write-Host "ZIP created successfully"
+        if (Test-Path "Final_Release") {
+            if ((Get-ChildItem "Final_Release" | Measure-Object).Count -gt 0) {
+                Compress-Archive -Path "Final_Release\*" -DestinationPath "Game-Windows.zip" -Force
+                Write-Host "ZIP created successfully"
+            } else {
+                Write-Error "Final_Release is empty!"
+                exit 1
+            }
         } else {
-            Write-Error "Final_Release is empty or does not exist!"
+            Write-Error "Final_Release does not exist!"
             exit 1
         }
     
@@ -190,3 +177,5 @@ if os.path.exists(tk_dir):
       with:
         name: Game-Full-Build
         path: Game-Windows.zip
+
+        

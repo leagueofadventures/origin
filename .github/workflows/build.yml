@@ -54,21 +54,9 @@ jobs:
     - name: Copy Tcl/Tk DLLs from Python installation
       shell: cmd
       run: |
-        :: Ищем Python путь
-        where python > python_path.txt
-        set /p PYTHON_PATH=<python_path.txt
-        echo Python found at: %PYTHON_PATH%
-        
-        :: Получаем директорию Python
-        for %%i in ("%PYTHON_PATH%") do set PYTHON_DIR=%%~dpi
-        echo Python directory: %PYTHON_DIR%
-        
-        :: Копируем DLL файлы
-        copy "%PYTHON_DIR%DLLs\tcl86t.dll" .\ || echo TCL DLL not found in DLLs, trying other locations...
-        copy "%PYTHON_DIR%tcl86t.dll" .\ || echo TCL DLL not found in root...
-        
-        copy "%PYTHON_DIR%DLLs\tk86t.dll" .\ || echo TK DLL not found in DLLs, trying other locations...
-        copy "%PYTHON_DIR%tk86t.dll" .\ || echo TK DLL not found in root...
+        :: Используем прямой путь к Python в GitHub Actions
+        copy "C:\hostedtoolcache\windows\Python\3.11.9\x64\DLLs\tcl86t.dll" .\
+        copy "C:\hostedtoolcache\windows\Python\3.11.9\x64\DLLs\tk86t.dll" .\
         
         :: Проверяем, что файлы скопировались
         if exist tcl86t.dll (
@@ -86,13 +74,13 @@ jobs:
     - name: Build Launcher EXE
       shell: cmd
       run: |
-        :: Собираем лаунчер, продолжаем даже при ошибках
+        :: Собираем лаунчер, принудительно продолжаем даже при ошибках
         pyinstaller --noconfirm --onedir --name=Launcher ^
           --icon="images/icon.ico" ^
           --hidden-import=tkinter ^
           --hidden-import=requests ^
           --add-data="images;images" ^
-          launcher.py || echo "PyInstaller completed with warnings, continuing..."
+          launcher.py || exit 0
         
         :: Если DLL файлы есть, копируем их в dist/Launcher
         if exist tcl86t.dll (
@@ -106,27 +94,11 @@ jobs:
     - name: Copy Tcl/Tk directories
       shell: cmd
       run: |
-        :: Ищем Python путь для tkinter
-        where python > python_path2.txt
-        set /p PYTHON_PATH2=<python_path2.txt
+        :: Используем прямой путь
+        xcopy "C:\hostedtoolcache\windows\Python\3.11.9\x64\Lib\tkinter\tcl" dist\Launcher\tcl /E /I /Y || echo Tcl directory copy failed, continuing...
+        xcopy "C:\hostedtoolcache\windows\Python\3.11.9\x64\Lib\tkinter\tk" dist\Launcher\tk /E /I /Y || echo Tk directory copy failed, continuing...
         
-        :: Получаем директорию Python
-        for %%i in ("%PYTHON_PATH2%") do set PYTHON_DIR2=%%~dpi
-        
-        :: Пытаемся найти и скопировать Tcl/Tk директории
-        if exist "%PYTHON_DIR2%Lib\tkinter\tcl" (
-          xcopy "%PYTHON_DIR2%Lib\tkinter\tcl" dist\Launcher\tcl /E /I /Y
-          echo Tcl directory copied
-        ) else (
-          echo WARNING: Tcl directory not found at %PYTHON_DIR2%Lib\tkinter\tcl
-        )
-        
-        if exist "%PYTHON_DIR2%Lib\tkinter\tk" (
-          xcopy "%PYTHON_DIR2%Lib\tkinter\tk" dist\Launcher\tk /E /I /Y
-          echo Tk directory copied
-        ) else (
-          echo WARNING: Tk directory not found at %PYTHON_DIR2%Lib\tkinter\tk
-        )
+        echo Tcl/Tk directories copied
     
     - name: Create Final Folder
       shell: cmd

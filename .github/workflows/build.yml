@@ -84,7 +84,7 @@ jobs:
         
         :: Копируем Game 
         if exist dist\main (
-          xcopy dist\main Final_Release /E /I /Y
+          xcopy dist\main Final_Release\Game /E /I /Y
         )
         
         :: Копируем содержимое Launcher (в корень Final_Release)

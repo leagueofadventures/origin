@@ -49,13 +49,69 @@ jobs:
           --add-data="sprites;sprites" ^
           main.py
     
+    - name: Find Tcl/Tk DLLs
+      shell: cmd
+      run: |
+        :: Находим пути к DLL файлам Tcl/Tk
+        python -c "
+import os
+import sys
+import glob
+
+# Ищем в стандартных путях Python
+python_path = sys.exec_prefix
+print(f'Python prefix: {python_path}')
+
+# Ищем DLL файлы
+search_paths = [
+    python_path,
+    os.path.join(python_path, 'DLLs'),
+    os.path.join(python_path, 'Library', 'bin'),
+    os.path.join(os.path.dirname(python_path), 'DLLs'),
+]
+
+for path in search_paths:
+    if os.path.exists(path):
+        print(f'\nSearching in: {path}')
+        tcl_dlls = glob.glob(os.path.join(path, 'tcl*.dll'))
+        tk_dlls = glob.glob(os.path.join(path, 'tk*.dll'))
+        
+        if tcl_dlls:
+            print(f'Found TCL DLLs: {tcl_dlls}')
+        if tk_dlls:
+            print(f'Found TK DLLs: {tk_dlls}')
+        
+        # Копируем первый найденный файл
+        if tcl_dlls:
+            import shutil
+            shutil.copy2(tcl_dlls[0], 'tcl86t.dll')
+            print(f'Copied: {tcl_dlls[0]} -> tcl86t.dll')
+        
+        if tk_dlls:
+            import shutil
+            shutil.copy2(tk_dlls[0], 'tk86t.dll')
+            print(f'Copied: {tk_dlls[0]} -> tk86t.dll')
+"
+    
     - name: Build Launcher EXE
       shell: cmd
       run: |
-        :: Сначала находим путь к Tcl/Tk
-        python -c "import tkinter; import os; tcl_dir = os.path.join(os.path.dirname(tkinter.__file__), 'tcl'); tk_dir = os.path.join(os.path.dirname(tkinter.__file__), 'tk'); print(f'TCL: {tcl_dir}'); print(f'TK: {tk_dir}')"
+        :: Проверяем, что DLL файлы существуют
+        if exist tcl86t.dll (
+          echo TCL DLL found
+        ) else (
+          echo ERROR: tcl86t.dll not found!
+          exit 1
+        )
         
-        :: Собираем лаунчер с явным указанием Tcl/Tk
+        if exist tk86t.dll (
+          echo TK DLL found
+        ) else (
+          echo ERROR: tk86t.dll not found!
+          exit 1
+        )
+        
+        :: Собираем лаунчер
         pyinstaller --noconfirm --onedir --name=Launcher ^
           --icon="images/icon.ico" ^
           --hidden-import=tkinter ^
@@ -63,8 +119,34 @@ jobs:
           --add-data="images;images" ^
           --add-data="tcl86t.dll;." ^
           --add-data="tk86t.dll;." ^
-          --collect-all tkinter ^
           launcher.py
+    
+    - name: Copy Tcl/Tk directories
+      shell: cmd
+      run: |
+        :: Копируем Tcl/Tk директории
+        python -c "
+import os
+import shutil
+import tkinter
+
+# Находим пути к Tcl/Tk
+tkinter_dir = os.path.dirname(tkinter.__file__)
+tcl_dir = os.path.join(tkinter_dir, 'tcl')
+tk_dir = os.path.join(tkinter_dir, 'tk')
+
+print(f'Tcl directory: {tcl_dir}')
+print(f'Tk directory: {tk_dir}')
+
+# Копируем в dist/Launcher
+dest_dir = 'dist/Launcher'
+if os.path.exists(tcl_dir):
+    shutil.copytree(tcl_dir, os.path.join(dest_dir, 'tcl'), dirs_exist_ok=True)
+    print('Tcl directory copied')
+if os.path.exists(tk_dir):
+    shutil.copytree(tk_dir, os.path.join(dest_dir, 'tk'), dirs_exist_ok=True)
+    print('Tk directory copied')
+"
     
     - name: Create Final Folder
       shell: cmd
@@ -79,7 +161,7 @@ jobs:
           exit 1
         )
         
-        :: Копируем Launcher и ВСЕ его зависимости
+        :: Копируем Launcher
         if exist dist\Launcher (
           xcopy dist\Launcher Final_Release /E /I /Y
         ) else (
@@ -87,10 +169,9 @@ jobs:
           exit 1
         )
         
-        :: Проверяем наличие Tcl/Tk файлов
-        echo Checking Tcl/Tk files...
-        dir Final_Release\tcl /s
-        dir Final_Release\tk /s
+        :: Проверяем структуру
+        echo Final Release structure:
+        dir Final_Release /s
         
     - name: Create ZIP archive
       shell: pwsh
@@ -108,4 +189,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Game-Full-Build
-        path: Game-Windows.zip 
+        path: Game-Windows.zip

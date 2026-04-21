@@ -5,6 +5,9 @@ on:
   push:
     branches: ['main']
   workflow_dispatch:
+permissions:
+  contents: write
+
 
 jobs:
   build:
@@ -110,3 +113,15 @@ jobs:
       with:
         name: League of Adventures
         path: Game-Windows.zip
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: Game-Windows.zip
+        name: "Release ${{ github.ref_name }}"
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

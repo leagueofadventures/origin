@@ -58,11 +58,8 @@ jobs:
     - name: Build Launcher EXE
       shell: pwsh
       run: |
-        # Используем динамический путь к Python
         $pyPath = $env:pythonLocation
         
-        # Собираем лаунчер
-        # Добавляем пути к Tcl/Tk библиотекам прямо в сборку через --add-data
         pyinstaller --noconfirm --onedir --name=Launcher `
           --icon="images/icon.ico" `
           --hidden-import=tkinter `
@@ -72,7 +69,6 @@ jobs:
           --add-binary "$pyPath\DLLs\tk86t.dll;." `
           launcher.py
           
-        # Копируем папки Tcl/Tk внутрь папки Launcher, чтобы Tkinter работал
         if (Test-Path "$pyPath\tcl") {
             xcopy "$pyPath\tcl\tcl*" "dist\Launcher\tcl\" /E /I /Y
             xcopy "$pyPath\tcl\tk*" "dist\Launcher\tk\" /E /I /Y
@@ -85,12 +81,10 @@ jobs:
       run: |
         mkdir Final_Release
         
-        :: Копируем Game 
         if exist dist\main (
           xcopy dist\main Final_Release\Game /E /I /Y
         )
         
-        :: Копируем содержимое Launcher (в корень Final_Release)
         if exist dist\Launcher (
           xcopy dist\Launcher Final_Release /E /I /Y
         )
@@ -101,7 +95,7 @@ jobs:
       shell: pwsh
       run: |
         if (Test-Path "Final_Release") {
-            Compress-Archive -Path "Final_Release\*" -DestinationPath "Game-Windows.zip" -Force
+            Compress-Archive -Path "Final_Release\*" -DestinationPath "Leagueofadventures.zip" -Force
             Write-Host "ZIP created successfully"
         } else {
             Write-Error "Final_Release does not exist!"
@@ -112,12 +106,12 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: League of Adventures
-        path: Game-Windows.zip
+        path: Leagueofadventures.zip
         
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: Game-Windows.zip
+        files: Leagueofadventures.zip
         # Используем дату и короткий SHA коммита для названия, если нет тега
         tag_name: "build-${{ github.sha }}"
         name: "Auto-Build: ${{ github.sha }}"

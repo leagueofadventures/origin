@@ -483,9 +483,15 @@ class Launcher:
         self.update_status("Запуск игры...")
         
         try:
-            # Проверяем существование main.py
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            game_path = os.path.join(script_dir, 'Game', "main.py")
+            # Проверяем существование main.py
+            if getattr(sys, 'frozen', False):
+                game_path = os.path.join(script_dir, "Game", "main.exe")
+                cmd = [game_path]
+            else:
+                print('Python')
+                game_path = os.path.join(script_dir, 'main.py')
+                cmd = [sys.executable, game_path]
             
             if not os.path.exists(game_path):
                 messagebox.showerror("Ошибка", f"Файл игры не найден: {game_path}")
@@ -496,14 +502,15 @@ class Launcher:
             env = os.environ.copy()
             if self.token:
                 env["GAME_TOKEN"] = self.token
-            
-            # Запускаем игру
-            subprocess.Popen([
-                sys.executable, 
-                game_path, 
+
+            cmd.extend([
                 "--server", 
                 SERVER_HOST.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
-            ], env=env)
+            ])
+
+            
+            # Запускаем игру
+            subprocess.Popen(cmd, env=env)
             
             self.update_status("Игра запущена!")
             
@@ -522,4 +529,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     launcher = Launcher(root)
     root.mainloop()
-вот код лаунчера, если сможешь, в этом коде исправь ошибку

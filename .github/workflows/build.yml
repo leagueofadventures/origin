@@ -116,10 +116,11 @@ jobs:
         
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
       with:
         files: Game-Windows.zip
-        name: "Release ${{ github.ref_name }}"
+        # Используем дату и короткий SHA коммита для названия, если нет тега
+        tag_name: "build-${{ github.sha }}"
+        name: "Auto-Build: ${{ github.sha }}"
         draft: false
         prerelease: false
       env:

@@ -570,8 +570,6 @@ in_pause = False
 image_counter = 0
 in_quit = False
 
-clock = pygame.time.Clock()
-
 
 def on_message(ws, message):
     global players, mobs, projectiles, client_chat_history, player_x, player_y, cid
@@ -668,7 +666,8 @@ off_toggles_rect[2].topleft = (width//1.5035, height//1.51898) #1277, 711
 
 
 while running:
-                               
+    clock = pygame.time.Clock()
+    clock.tick(60)                                  
 
     # обновление анимаций
     animation_frame += 0.2
@@ -787,9 +786,7 @@ while running:
                             screen.blit(light_ru_setting_png, (0, 0))
                         else:
                             screen.blit(light_en_setting_png, (0, 0))
-                        # print(f'theme = {theme}')
                     elif theme == 'dark':
-                        # print(f'theme = {theme}')
                         if language == 'ru':
                             screen.blit(dark_ru_setting_png, (0, 0))
                         else:
@@ -985,8 +982,6 @@ while running:
             
         
         for mob in solo_mobs:
-            # if mob.attacking and current_time - mob.last_attacking_time >= 1000:
-            # solo_mob_projectiles.append(Projectiles(mob.x, mob.y, 5))
             mob_proj = mob
 
         # Проверка коллизий
@@ -1019,7 +1014,6 @@ while running:
 
 
         solo_player_class.attack(kill, solo_mobs, mobb, solo_projectiles)
-        # mobb.attack(solo_mob_projectiles, current_time, solo_mobs)
 
     # Мультиплеер
     if multi_play:
@@ -1144,12 +1138,6 @@ while running:
                 screen.blit(light_en_quit_png, (0, 0))
         screen.blit(quit_yes_button, quit_yes_button_rect)
         screen.blit(quit_no_button, quit_no_button_rect)
-
-
-
-
-
-    clock.tick(60)   
     pygame.display.flip()
 
 if ws:

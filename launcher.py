@@ -483,122 +483,41 @@ class Launcher:
         self.update_status("Запуск игры...")
         
         try:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            # Проверяем существование main.py
+            if getattr(sys, 'frozen', False):
+                game_path = os.path.join(script_dir, "Game", "main.exe")
+                cmd = [game_path]
+            else:
+                print('Python')
+                game_path = os.path.join(script_dir, 'main.py')
+                cmd = [sys.executable, game_path]
+            
+            if not os.path.exists(game_path):
+                messagebox.showerror("Ошибка", f"Файл игры не найден: {game_path}")
+                self.update_status("Файл игры не найден", True)
+                return
+
             # Подготавливаем окружение
             env = os.environ.copy()
             if self.token:
                 env["GAME_TOKEN"] = self.token
-            
-            # Подготавливаем аргументы для сервера
-            server_url = SERVER_HOST.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
-            
-            # Определяем путь к игре
-            if getattr(sys, 'frozen', False):
-                # Если запущен как EXE
-                base_dir = os.path.dirname(sys.executable)
-                print(f'EXE mode, base_dir: {base_dir}')
-                
-                # Ищем Game.exe в папке Game
-                game_path = os.path.join(base_dir, "Game", "Game.exe")
-                
-                if not os.path.exists(game_path):
-                    # Пробуем альтернативные пути для EXE
-                    alt_paths = [
-                        os.path.join(base_dir, "Game", "main.exe"),
-                        os.path.join(base_dir, "main.exe"),
-                        os.path.join(base_dir, "Game.exe"),
-                    ]
-                    
-                    for path in alt_paths:
-                        if os.path.exists(path):
-                            game_path = path
-                            break
-                
-                if os.path.exists(game_path):
-                    print(f'Found EXE: {game_path}')
-                    # Запускаем EXE файл
-                    launch_command = [game_path, "--server", server_url]
-                else:
-                    # Если EXE не найден, ищем Python скрипт
-                    print('EXE not found, looking for Python script')
-                    game_path = os.path.join(base_dir, "Game", "main.py")
-                    if not os.path.exists(game_path):
-                        game_path = os.path.join(base_dir, "main.py")
-                    
-                    if os.path.exists(game_path):
-                        print(f'Found Python script: {game_path}')
-                        # Запускаем Python скрипт
-                        launch_command = [sys.executable, game_path, "--server", server_url]
-                    else:
-                        raise FileNotFoundError(f"Игра не найдена в {base_dir}")
-                        
-            else:
-                print('Python script mode')
-                # Если запущен как Python скрипт
-                base_dir = os.path.dirname(os.path.abspath(__file__))
-                print(f'Python mode, base_dir: {base_dir}')
-                
-                # Сначала ищем main.py в той же папке (рядом с launcher.py)
-                game_path = os.path.join(base_dir, 'main.py')
-                
-                if not os.path.exists(game_path):
-                    # Пробуем в папке Game
-                    game_path = os.path.join(base_dir, "Game", "main.py")
-                
-                if not os.path.exists(game_path):
-                    # Пробуем EXE для разработки
-                    game_path = os.path.join(base_dir, "dist", "Game", "Game.exe")
-                
-                if os.path.exists(game_path):
-                    print(f'Found game at: {game_path}')
-                    
-                    if game_path.endswith('.py'):
-                        # Запускаем Python скрипт
-                        launch_command = [sys.executable, game_path, "--server", server_url]
-                    else:
-                        # Запускаем EXE файл
-                        launch_command = [game_path, "--server", server_url]
-                else:
-                    # Показываем содержимое папки для отладки
-                    error_msg = f"Файл игры не найден!\n\n"
-                    error_msg += f"Искали в: {base_dir}\n"
-                    error_msg += f"Содержимое папки:\n"
-                    
-                    try:
-                        for item in os.listdir(base_dir):
-                            error_msg += f"  {item}\n"
-                    except Exception as e:
-                        error_msg += f"Ошибка при чтении папки: {e}\n"
-                    
-                    raise FileNotFoundError(error_msg)
+
+            cmd.extend([
+                "--server", 
+                SERVER_HOST.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
+            ])
+
             
             # Запускаем игру
-            print(f"Запуск игры: {' '.join(launch_command)}")
-            print(f"Рабочая директория: {os.path.dirname(game_path)}")
+            subprocess.Popen(cmd, env=env)
             
-            process = subprocess.Popen(
-                launch_command,
-                cwd=os.path.dirname(game_path),
-                env=env,
-                shell=False
-            )
-            
-            print(f"Игра запущена с PID: {process.pid}")
             self.update_status("Игра запущена!")
             
-            # Закрываем лаунчер через 2 секунды
-            self.root.after(2000, self.safe_exit)
-            
-        except FileNotFoundError as e:
-            messagebox.showerror("Ошибка", str(e))
-            self.update_status("Файл игры не найден", True)
         except Exception as e:
-            error_msg = f"Не удалось запустить игру: {e}\n\n"
-            import traceback
-            error_msg += f"Трассировка:\n{traceback.format_exc()}"
-            
-            messagebox.showerror("Ошибка", error_msg)
+            messagebox.showerror("Ошибка", f"Не удалось запустить игру: {e}")
             self.update_status("Ошибка запуска", True)
-        
+
     def set_buttons_state(self, enabled):
         """Включает/отключает кнопки"""
         state = "normal" if enabled else "disabled"

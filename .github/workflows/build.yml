@@ -43,7 +43,7 @@ jobs:
     - name: Build Game EXE
       shell: cmd
       run: |
-        pyinstaller --noconfirm --onedir --name=main ^
+        pyinstaller --noconfirm --noconsole --onedir --name=main ^
           --icon="images/icon.ico" ^
           --hidden-import=pygame ^
           --hidden-import=pytmx ^
@@ -60,7 +60,7 @@ jobs:
       run: |
         $pyPath = $env:pythonLocation
         
-        pyinstaller --noconfirm --onedir --name=Launcher `
+        pyinstaller --noconfirm --noconsole --onedir --name=Launcher `
           --icon="images/icon.ico" `
           --hidden-import=tkinter `
           --hidden-import=requests `

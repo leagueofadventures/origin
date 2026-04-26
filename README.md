@@ -80,7 +80,7 @@
 ## 🌐 Ссылки и инфраструктура
 - 📡 **Сервер обновлений:** `https://league-of-adventures.onrender.com`
 - 🗄 **Таблицы БД:** `users`, `admins`, `banned`, `players`, `app_settings`
-- 💻 **Репозиторий:** [https:/leagueofadventures/origin](#) *(замените на вашу ссылку)*
+- 💻 **Репозиторий:** [https:/leagueofadventures/origin](#) *
 - 📄 **Презентация проекта:** [PDF](origin.pdf)
 
 ## 👥 Команда

@@ -4,6 +4,15 @@ name: Build Game
 on:
   push:
     branches: ['main']
+    paths:                          
+      - 'main.py'
+      - 'launcher.py'
+      - 'images/**'
+      - 'music/**'
+      - 'maps/**'
+      - 'sprites/**'
+      - 'requirements.txt'
+      - '.github/workflows/build.yml'
   workflow_dispatch:
 permissions:
   contents: write

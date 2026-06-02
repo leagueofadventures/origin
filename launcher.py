@@ -14,7 +14,8 @@ from pathlib import Path
 
 # Настройки сервера
 SERVER_HOST = "127.0.0.1"
-CLIENT_VERSION = "1.0.0"  # Будет обновляться автоматически
+BASE_URL = f"http://{SERVER_HOST}"          # добавлено: полный базовый URL
+CLIENT_VERSION = "1.0.0"                   # Будет обновляться автоматически
 UPDATE_CHECK_TIMEOUT = 10
 DOWNLOAD_TIMEOUT = 30
 
@@ -175,7 +176,7 @@ class Launcher:
         def check():
             try:
                 response = requests.get(
-                    f"{SERVER_HOST}/check_update?version={CLIENT_VERSION}",
+                    f"{BASE_URL}/check_update?version={CLIENT_VERSION}",
                     timeout=UPDATE_CHECK_TIMEOUT
                 )
                 if response.status_code == 200:
@@ -219,7 +220,7 @@ class Launcher:
         def do_login():
             try:
                 response = requests.post(
-                    f"{SERVER_HOST}/login",
+                    f"{BASE_URL}/login",
                     json={"username": username, "password": password},
                     timeout=UPDATE_CHECK_TIMEOUT
                 )
@@ -291,7 +292,7 @@ class Launcher:
         def do_register():
             try:
                 response = requests.post(
-                    f"{SERVER_HOST}/register",
+                    f"{BASE_URL}/register",
                     json={"username": username, "password": password},
                     timeout=UPDATE_CHECK_TIMEOUT
                 )
@@ -347,7 +348,7 @@ class Launcher:
         def do_check():
             try:
                 response = requests.get(
-                    f"{SERVER_HOST}/check_update?version={CLIENT_VERSION}",
+                    f"{BASE_URL}/check_update?version={CLIENT_VERSION}",
                     timeout=UPDATE_CHECK_TIMEOUT
                 )
                 
@@ -412,7 +413,7 @@ class Launcher:
                 self.root.after(0, lambda: self.progress_label.config(text="Скачивание обновления..."))
                 
                 response = requests.get(
-                    f"{SERVER_HOST}/download_update", 
+                    f"{BASE_URL}/download_update", 
                     stream=True,
                     timeout=DOWNLOAD_TIMEOUT
                 )
@@ -503,11 +504,9 @@ class Launcher:
             if self.token:
                 env["GAME_TOKEN"] = self.token
 
-            cmd.extend([
-                "--server", 
-                SERVER_HOST.replace("https://", "wss://").replace("http://", "ws://") + "/ws"
-            ])
-
+            # Исправлено: формируем корректный WebSocket URL
+            ws_url = f"ws://{SERVER_HOST}/ws"
+            cmd.extend(["--server", ws_url])
             
             # Запускаем игру
             subprocess.Popen(cmd, env=env)

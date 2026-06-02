@@ -77,40 +77,60 @@ jobs:
             xcopy "$pyPath\Lib\tkinter\tcl" "dist\Launcher\tcl\" /E /I /Y
             xcopy "$pyPath\Lib\tkinter\tk" "dist\Launcher\tk\" /E /I /Y
         }
+    - name: Upload game artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: game-build
+        path: |
+          dist/main/
+          dist/Launcher/
+
   build-go-server:
-    runs-on: windows-latest # Сборка Go-сервера на Windows для получения .exe
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v4
       with:
         go-version: '1.23'
     - name: Build Go Server Binary (.exe)
-      shell: pwsh # Используем PowerShell для кроссплатформенной команды go build
+      shell: pwsh
       run: |
         cd server
-        go build -o ../Final_Release/server.exe . # Явно указываем расширение .exe
+        go build -o ../server.exe .   # строим прямо в корень workspace
+    - name: Upload server artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: server-exe
+        path: server.exe
 
   create-release-asset:
     needs: [build, build-go-server]
-    runs-on: windows-latest # Сборка и упаковка на одной ОС (Windows)
+    runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: Create Final Folder Structure and Copy Files (Windows)
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts   # все артефакты попадут в папку artifacts/имя_артефакта/
+
+    - name: Assemble final release structure
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Force -Path "Final_Release\Game"
         New-Item -ItemType Directory -Force -Path "Final_Release\Server"
 
-        if (Test-Path "dist\main") { Copy-Item "dist\main\*" "Final_Release\Game\" -Recurse }
-        if (Test-Path "Final_Release\server.exe") { Move-Item "Final_Release\server.exe" "Final_Release\Server\" }
+        # Копируем клиент
+        Copy-Item "artifacts\game-build\main\*" "Final_Release\Game\" -Recurse
+        Copy-Item "artifacts\game-build\Launcher\*" "Final_Release\Game\" -Recurse
 
-    - name: Create ZIP archive for Windows build host
-      shell: pwsh
-      run: |
-        if (Test-Path "Final_Release") { Compress-Archive -Path "Final_Release\*" -DestinationPath "Leagueofadventures.zip" }
+        # Копируем сервер
+        Copy-Item "artifacts\server-exe\server.exe" "Final_Release\Server\"
 
-    - name: Upload artifacts to GitHub Actions storage
+        # Создаём ZIP
+        Compress-Archive -Path "Final_Release\*" -DestinationPath "Leagueofadventures.zip"
+
+    - name: Upload final artifact to workflow
       uses: actions/upload-artifact@v4
       with:
         name: League of Adventures Full Release

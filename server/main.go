@@ -18,7 +18,7 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	_ "github.com/lib/pq"
+	_ "modernc.org/sqlite"
 )
 
 var upgrader = websocket.Upgrader{
@@ -632,7 +632,6 @@ func gameLoop() {
 
 		// Столкновения снарядов
 		for projID, proj := range projectiles {
-			// Снаряды игроков -> мобы
 			if proj.OwnerType == "player" {
 				for mobID, mob := range mobs {
 					if math.Abs(proj.X-mob.X) < 32 && math.Abs(proj.Y-mob.Y) < 32 {
@@ -646,35 +645,27 @@ func gameLoop() {
 					}
 				}
 			}
-			// Снаряды мобов -> игроки
-			// Снаряды мобов -> игроки
 			if proj.OwnerType == "mob" {
-			    for playerID, player := range players {
-			        // Проверка столкновения (коллизии)
-			        if math.Abs(proj.X-player.X) < 32 && math.Abs(proj.Y-player.Y) < 32 {
-			            
-			            // --- НАЧАЛО ИЗМЕНЕНИЙ ---
-			            // Выводим в лог ID игрока, который получил урон
-			            log.Printf("Снаряд (ID: %s) попал в игрока (ID: %s). Нанесено 20 урона.", proj.ID, playerID)
-			            // --- КОНЕЦ ИЗМЕНЕНИЙ ---
-			
-			            player.Health -= 20
-			            player.Hurt = true
-			            player.LastHurt = currentTime
-			            delete(projectiles, projID)
-			
-			            if player.Health <= 0 {
-			                player.Dead = true
-			                player.Health = 0
-			                go respawnPlayer(player)
-			                // Также можно добавить лог о смерти игрока
-			                log.Printf("Игрок (ID: %s) был убит снарядом (ID: %s).", playerID, proj.ID)
-			            }
-			            break // Выходим из цикла, так как один снаряд поражает только одного игрока
-			        }
-			    }
+				for playerID, player := range players {
+					if math.Abs(proj.X-player.X) < 32 && math.Abs(proj.Y-player.Y) < 32 {
+						log.Printf("Снаряд (ID: %s) попал в игрока (ID: %s). Нанесено 20 урона.", proj.ID, playerID)
+						player.Health -= 20
+						player.Hurt = true
+						player.LastHurt = currentTime
+						delete(projectiles, projID)
+
+						if player.Health <= 0 {
+							player.Dead = true
+							player.Health = 0
+							go respawnPlayer(player)
+							log.Printf("Игрок (ID: %s) был убит снарядом (ID: %s).", playerID, proj.ID)
+						}
+						break
+					}
+				}
 			}
-        }
+		}
+
 		// Подготовка состояния для клиентов
 		playersState := make(map[string]interface{})
 		for id, p := range players {
@@ -771,7 +762,7 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = db.Exec("INSERT INTO users (username, password, is_admin) VALUES ($1, $2, $3)", req.Username, req.Password, false)
+	_, err = db.Exec("INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)", req.Username, req.Password, false)
 	if err != nil {
 		log.Printf("Ошибка вставки пользователя: %v", err)
 		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
@@ -869,7 +860,7 @@ func loadUsers() {
 }
 
 func saveUsers() {
-	_, err := db.Exec("INSERT INTO admins (username) VALUES ('admin') ON CONFLICT (username) DO NOTHING")
+	_, err := db.Exec("INSERT OR IGNORE INTO admins (username) VALUES ('admin')")
 	if err != nil {
 		log.Println("Ошибка вставки администратора по умолчанию:", err)
 	}
@@ -877,7 +868,7 @@ func saveUsers() {
 
 func getUser(username string) (User, error) {
 	var user User
-	err := db.QueryRow("SELECT username, password, is_admin FROM users WHERE username = $1", username).Scan(&user.Username, &user.Password, &user.IsAdmin)
+	err := db.QueryRow("SELECT username, password, is_admin FROM users WHERE username = ?", username).Scan(&user.Username, &user.Password, &user.IsAdmin)
 	return user, err
 }
 
@@ -1058,10 +1049,10 @@ func adminBackupHandler(w http.ResponseWriter, r *http.Request) {
 func createTables() {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS users (
-			id SERIAL PRIMARY KEY,
-			username VARCHAR(50) UNIQUE NOT NULL,
-			password VARCHAR(255) NOT NULL,
-			is_admin BOOLEAN DEFAULT FALSE
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			username TEXT UNIQUE NOT NULL,
+			password TEXT NOT NULL,
+			is_admin INTEGER DEFAULT 0
 		)
 	`)
 	if err != nil {
@@ -1070,8 +1061,8 @@ func createTables() {
 
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS admins (
-			id SERIAL PRIMARY KEY,
-			username VARCHAR(50) UNIQUE NOT NULL
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			username TEXT UNIQUE NOT NULL
 		)
 	`)
 	if err != nil {
@@ -1080,8 +1071,8 @@ func createTables() {
 
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS banned (
-			id SERIAL PRIMARY KEY,
-			username VARCHAR(50) UNIQUE NOT NULL
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			username TEXT UNIQUE NOT NULL
 		)
 	`)
 	if err != nil {
@@ -1090,17 +1081,17 @@ func createTables() {
 
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS players (
-			id VARCHAR(36) PRIMARY KEY,
-			username VARCHAR(50),
+			id TEXT PRIMARY KEY,
+			username TEXT,
 			x REAL DEFAULT 960,
 			y REAL DEFAULT 980,
-			direction VARCHAR(10) DEFAULT 'down',
+			direction TEXT DEFAULT 'down',
 			health INTEGER DEFAULT 100,
 			level INTEGER DEFAULT 1,
-			ip VARCHAR(45),
-			is_admin BOOLEAN DEFAULT FALSE,
-			visible BOOLEAN DEFAULT TRUE,
-			last_update TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			ip TEXT,
+			is_admin INTEGER DEFAULT 0,
+			visible INTEGER DEFAULT 1,
+			last_update TEXT DEFAULT (datetime('now'))
 		)
 	`)
 	if err != nil {
@@ -1109,9 +1100,9 @@ func createTables() {
 
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS app_settings (
-			key VARCHAR(50) PRIMARY KEY,
+			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			updated_at TEXT DEFAULT (datetime('now'))
 		)
 	`)
 	if err != nil {
@@ -1119,9 +1110,8 @@ func createTables() {
 	}
 
 	_, err = db.Exec(`
-		INSERT INTO app_settings (key, value) 
-		VALUES ('latest_version', '1.0.0') 
-		ON CONFLICT (key) DO NOTHING
+		INSERT OR IGNORE INTO app_settings (key, value) 
+		VALUES ('latest_version', '1.0.0')
 	`)
 	if err != nil {
 		log.Printf("Ошибка инициализации версии: %v", err)
@@ -1138,12 +1128,14 @@ func main() {
 		log.Println("ВНИМАНИЕ: Используется стандартный JWT секрет. Установите JWT_SECRET в переменных окружения.")
 	}
 
+	// Используем SQLite, файл game.db создастся автоматически
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		databaseURL = "127.0.0.1"
+		databaseURL = "file:game.db?cache=shared&mode=rwc"
 	}
+
 	var err error
-	db, err = sql.Open("postgres", databaseURL)
+	db, err = sql.Open("sqlite", databaseURL)
 	if err != nil {
 		log.Fatal("Ошибка подключения к БД:", err)
 	}
@@ -1154,9 +1146,9 @@ func main() {
 		log.Fatal("Ошибка ping к БД:", err)
 	}
 
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetMaxOpenConns(1) // SQLite рекомендует ограничивать конкурентные записи
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
 
 	createTables()
 

@@ -96,7 +96,7 @@ jobs:
       shell: pwsh
       run: |
         cd server
-        go build -o ../server.exe .   # строим прямо в корень workspace
+        go build -o ../server.exe .
     - name: Upload server artifact
       uses: actions/upload-artifact@v4
       with:
@@ -112,7 +112,7 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
-        path: artifacts   # все артефакты попадут в папку artifacts/имя_артефакта/
+        path: artifacts
 
     - name: Assemble final release structure
       shell: pwsh
@@ -120,9 +120,9 @@ jobs:
         New-Item -ItemType Directory -Force -Path "Final_Release\Game"
         New-Item -ItemType Directory -Force -Path "Final_Release\Server"
 
-        # Копируем клиент
-        Copy-Item "artifacts\game-build\main\*" "Final_Release\Game\" -Recurse
-        Copy-Item "artifacts\game-build\Launcher\*" "Final_Release\Game\" -Recurse
+        # Копируем клиент с перезаписью (-Force), чтобы избежать конфликтов одинаковых библиотек
+        Copy-Item "artifacts\game-build\main\*" "Final_Release\Game\" -Recurse -Force
+        Copy-Item "artifacts\game-build\Launcher\*" "Final_Release\Game\" -Recurse -Force
 
         # Копируем сервер
         Copy-Item "artifacts\server-exe\server.exe" "Final_Release\Server\"

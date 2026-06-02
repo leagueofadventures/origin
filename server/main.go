@@ -674,7 +674,7 @@ func gameLoop() {
 			        }
 			    }
 			}
-
+        }
 		// Подготовка состояния для клиентов
 		playersState := make(map[string]interface{})
 		for id, p := range players {

@@ -1140,7 +1140,7 @@ func main() {
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		log.Fatal("DATABASE_URL не установлена")
+		databaseURL = "127.0.0.1
 	}
 	var err error
 	db, err = sql.Open("postgres", databaseURL)

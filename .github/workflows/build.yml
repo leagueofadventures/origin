@@ -96,12 +96,17 @@ jobs:
       shell: pwsh
       run: |
         cd server
-        go mod tidy           # обновит go.sum, если нужно
+        go mod tidy
     - name: Build Go Server Binary (.exe)
       shell: pwsh
       run: |
         cd server
         go build -o ../server.exe .
+    - name: Upload server artifact               
+      uses: actions/upload-artifact@v4
+      with:
+        name: server-exe
+        path: server.exe
 
   create-release-asset:
     needs: [build, build-go-server]

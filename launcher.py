@@ -12,9 +12,9 @@ import tempfile
 import shutil
 from pathlib import Path
 
-# Настройки сервера
-SERVER_HOST = "127.0.0.1"
-BASE_URL = f"http://{SERVER_HOST}"          # добавлено: полный базовый URL
+# Настройки сервера (порт 8080)
+SERVER_HOST = "127.0.0.1:8080"              # добавлен порт 8080
+BASE_URL = f"http://{SERVER_HOST}"          # http://127.0.0.1:8080
 CLIENT_VERSION = "1.0.0"                   # Будет обновляться автоматически
 UPDATE_CHECK_TIMEOUT = 10
 DOWNLOAD_TIMEOUT = 30
@@ -504,7 +504,7 @@ class Launcher:
             if self.token:
                 env["GAME_TOKEN"] = self.token
 
-            # Исправлено: формируем корректный WebSocket URL
+            # WebSocket URL с портом 8080
             ws_url = f"ws://{SERVER_HOST}/ws"
             cmd.extend(["--server", ws_url])
             

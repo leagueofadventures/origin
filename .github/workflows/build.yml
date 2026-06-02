@@ -83,7 +83,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v4
       with:
-        go-version: '1.15'
+        go-version: '1.23'
     - name: Build Go Server Binary (.exe)
       shell: pwsh # Используем PowerShell для кроссплатформенной команды go build
       run: |

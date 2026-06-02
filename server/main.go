@@ -647,23 +647,33 @@ func gameLoop() {
 				}
 			}
 			// Снаряды мобов -> игроки
+			// Снаряды мобов -> игроки
 			if proj.OwnerType == "mob" {
-				for playerID, player := range players {
-					if math.Abs(proj.X-player.X) < 32 && math.Abs(proj.Y-player.Y) < 32 {
-						player.Health -= 20
-						player.Hurt = true
-						player.LastHurt = currentTime
-						delete(projectiles, projID)
-						if player.Health <= 0 {
-							player.Dead = true
-							player.Health = 0
-							go respawnPlayer(player)
-						}
-						break
-					}
-				}
+			    for playerID, player := range players {
+			        // Проверка столкновения (коллизии)
+			        if math.Abs(proj.X-player.X) < 32 && math.Abs(proj.Y-player.Y) < 32 {
+			            
+			            // --- НАЧАЛО ИЗМЕНЕНИЙ ---
+			            // Выводим в лог ID игрока, который получил урон
+			            log.Printf("Снаряд (ID: %s) попал в игрока (ID: %s). Нанесено 20 урона.", proj.ID, playerID)
+			            // --- КОНЕЦ ИЗМЕНЕНИЙ ---
+			
+			            player.Health -= 20
+			            player.Hurt = true
+			            player.LastHurt = currentTime
+			            delete(projectiles, projID)
+			
+			            if player.Health <= 0 {
+			                player.Dead = true
+			                player.Health = 0
+			                go respawnPlayer(player)
+			                // Также можно добавить лог о смерти игрока
+			                log.Printf("Игрок (ID: %s) был убит снарядом (ID: %s).", playerID, proj.ID)
+			            }
+			            break // Выходим из цикла, так как один снаряд поражает только одного игрока
+			        }
+			    }
 			}
-		}
 
 		// Подготовка состояния для клиентов
 		playersState := make(map[string]interface{})

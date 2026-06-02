@@ -1,10 +1,9 @@
-
-name: Build Game
+name: Build Game and Server
 
 on:
   push:
     branches: ['main']
-    paths:                          
+    paths:
       - 'main.py'
       - 'launcher.py'
       - 'images/**'
@@ -13,31 +12,26 @@ on:
       - 'sprites/**'
       - 'requirements.txt'
       - '.github/workflows/build.yml'
+      - 'server/**'
   workflow_dispatch:
+
 permissions:
   contents: write
 
-
 jobs:
-  build:
+  build: # Сборка клиента (Python)
     runs-on: windows-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Python
-      uses: actions/setup-python@v5
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    
     - name: Install dependencies
       shell: cmd
       run: |
         python -m pip install --upgrade pip
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
         if exist requirements.txt pip install -r requirements.txt
-    
     - name: Check Icon Path
       shell: cmd
       run: |
@@ -48,7 +42,6 @@ jobs:
           dir /s /b icon.ico
           exit 1
         )
-    
     - name: Build Game EXE
       shell: cmd
       run: |
@@ -63,12 +56,11 @@ jobs:
           --add-data="maps;maps" ^
           --add-data="sprites;sprites" ^
           main.py
-    
     - name: Build Launcher EXE
       shell: pwsh
       run: |
         $pyPath = $env:pythonLocation
-        
+
         pyinstaller --noconfirm --noconsole --onedir --name=Launcher `
           --icon="images/icon.ico" `
           --hidden-import=tkinter `
@@ -77,7 +69,7 @@ jobs:
           --add-binary "$pyPath\DLLs\tcl86t.dll;." `
           --add-binary "$pyPath\DLLs\tk86t.dll;." `
           launcher.py
-          
+
         if (Test-Path "$pyPath\tcl") {
             xcopy "$pyPath\tcl\tcl*" "dist\Launcher\tcl\" /E /I /Y
             xcopy "$pyPath\tcl\tk*" "dist\Launcher\tk\" /E /I /Y
@@ -85,47 +77,52 @@ jobs:
             xcopy "$pyPath\Lib\tkinter\tcl" "dist\Launcher\tcl\" /E /I /Y
             xcopy "$pyPath\Lib\tkinter\tk" "dist\Launcher\tk\" /E /I /Y
         }
-    - name: Create Final Folder
-      shell: cmd
+  build-go-server:
+    runs-on: windows-latest # Сборка Go-сервера на Windows для получения .exe
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+    - name: Build Go Server Binary (.exe)
+      shell: pwsh # Используем PowerShell для кроссплатформенной команды go build
       run: |
-        mkdir Final_Release
-        
-        if exist dist\main (
-          xcopy dist\main Final_Release\Game /E /I /Y
-        )
-        
-        if exist dist\Launcher (
-          xcopy dist\Launcher Final_Release /E /I /Y
-        )
-        
-        dir Final_Release
-    
-    - name: Create ZIP archive
+        cd server
+        go build -o ../Final_Release/server.exe . # Явно указываем расширение .exe
+
+  create-release-asset:
+    needs: [build, build-go-server]
+    runs-on: windows-latest # Сборка и упаковка на одной ОС (Windows)
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Create Final Folder Structure and Copy Files (Windows)
       shell: pwsh
       run: |
-        if (Test-Path "Final_Release") {
-            Compress-Archive -Path "Final_Release\*" -DestinationPath "Leagueofadventures.zip" -Force
-            Write-Host "ZIP created successfully"
-        } else {
-            Write-Error "Final_Release does not exist!"
-            exit 1
-        }
-    
-    - name: Upload artifacts
+        New-Item -ItemType Directory -Force -Path "Final_Release\Game"
+        New-Item -ItemType Directory -Force -Path "Final_Release\Server"
+
+        if (Test-Path "dist\main") { Copy-Item "dist\main\*" "Final_Release\Game\" -Recurse }
+        if (Test-Path "Final_Release\server.exe") { Move-Item "Final_Release\server.exe" "Final_Release\Server\" }
+
+    - name: Create ZIP archive for Windows build host
+      shell: pwsh
+      run: |
+        if (Test-Path "Final_Release") { Compress-Archive -Path "Final_Release\*" -DestinationPath "Leagueofadventures.zip" }
+
+    - name: Upload artifacts to GitHub Actions storage
       uses: actions/upload-artifact@v4
       with:
-        name: League of Adventures
+        name: League of Adventures Full Release
         path: Leagueofadventures.zip
-        
-    - name: Create GitHub Release
+
+    - name: Create GitHub Release and Upload Asset
       uses: softprops/action-gh-release@v2
       with:
         files: Leagueofadventures.zip
-        # Используем дату и короткий SHA коммита для названия, если нет тега
         tag_name: "build-${{ github.sha }}"
         name: "League of Adventures v1.0.0"
         draft: false
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

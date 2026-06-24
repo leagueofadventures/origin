@@ -90,19 +90,29 @@ class Mobs(pygame.sprite.Sprite):
         # Сбрасываем флаги движения
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, x, y, speed, direction, moving, attacking, health,  last_attacking_time): 
+    def __init__(self, x, y, lvl, exp, speed, direction, moving, attacking, health, dmg, last_attacking_time): 
         super().__init__()
         self.x = x
         self.y = y
+        self.lvl = lvl
+        self.exp = exp
         self.speed = speed
         self.direction = direction
         self.moving = moving
         self.attacking = attacking
         self.health = health
+        self.maxHealth = health
+        self.dmg = dmg
         self.sprites = {}
         self.attack_sprites = {}
         self.load_sprites()
         self.last_attacking_time = last_attacking_time
+    
+    def lvl_up():
+        self.maxHealth += 10
+        self.dmg += 10
+        self.lvl += 1
+
 
     def load_sprites(self):
         directions = ['up', 'down', 'left', 'right']
@@ -137,7 +147,9 @@ class Player(pygame.sprite.Sprite):
         for proj in solo_projectiles:
             proj.reset(camera_x, camera_y)
             proj.player_attack(solo_mobs, solo_projectiles)
-
+        if kill:
+            self.exp += 10
+        
                     
 
 class Projectiles(pygame.sprite.Sprite):
@@ -157,6 +169,7 @@ class Projectiles(pygame.sprite.Sprite):
         draw_circle(screen, self.x - camera_x, self.y - camera_y, (255, 0, 0), 6)  
         
     def update(self):
+        
         
         self.x += self.dx * self.speed
         self.y += self.dy * self.speed

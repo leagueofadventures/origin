@@ -4,34 +4,37 @@ on:
   push:
     branches: ['main']
     paths:
-      - 'main.py'
-      - 'launcher.py'
-      - 'images/**'
-      - 'music/**'
-      - 'maps/**'
-      - 'sprites/**'
-      - 'requirements.txt'
-      - '.github/workflows/build.yml'
-      - 'server/**'
+    - 'main.py'
+    - 'launcher.py'
+    - 'images/**'
+    - 'music/**'
+    - 'maps/**'
+    - 'sprites/**'
+    - 'requirements.txt'
+    - '.github/workflows/build.yml'
+    - 'server/**'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build: # Сборка клиента (Python)
+  build: 
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
+    
     - uses: actions/setup-python@v5
       with:
         python-version: '3.11'
+    
     - name: Install dependencies
       shell: cmd
       run: |
         python -m pip install --upgrade pip
         pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
         if exist requirements.txt pip install -r requirements.txt
+    
     - name: Check Icon Path
       shell: cmd
       run: |
@@ -42,6 +45,7 @@ jobs:
           dir /s /b icon.ico
           exit 1
         )
+    
     - name: Build Game EXE
       shell: cmd
       run: |
@@ -56,27 +60,68 @@ jobs:
           --add-data="maps;maps" ^
           --add-data="sprites;sprites" ^
           main.py
-    - name: Build Launcher EXE
+    
+    - name: Build Launcher EXE with Tcl/Tk
       shell: pwsh
       run: |
         $pyPath = $env:pythonLocation
-
+        Write-Host "Python path: $pyPath"
+        
+      
+        $tclPath = ""
+        $tkPath = ""
+        
+      
+        if (Test-Path "$pyPathtcl") {
+            $tclPath = "$pyPathtcl"
+            $tkPath = "$pyPathtk"
+            Write-Host "Found Tcl/Tk in Python root"
+        } elseif (Test-Path "$pyPathLibtkintertcl") {
+            $tclPath = "$pyPathLibtkintertcl"
+            $tkPath = "$pyPathLibtkintertk"
+            Write-Host "Found Tcl/Tk in Lib/tkinter"
+        } elseif (Test-Path "C:\Python311tcl") {
+            $tclPath = "C:\Python311tcl"
+            $tkPath = "C:\Python311tk"
+            Write-Host "Found Tcl/Tk in C:\Python311"
+        } else {
+    
+            $pythonExe = Get-Command python | Select-Object -First 1
+            $pythonDir = Split-Path $pythonExe.Source
+            $tclPath = Join-Path $pythonDir "tcl"
+            $tkPath = Join-Path $pythonDir "tk"
+            Write-Host "Using derived Tcl/Tk path: $tclPath"
+        }
+        
+        Write-Host "Tcl path: $tclPath"
+        Write-Host "Tk path: $tkPath"
+        
+      
+        if (-not (Test-Path $tclPath)) {
+            Write-Error "Tcl directory not found at: $tclPath"
+            exit 1
+        }
+        if (-not (Test-Path $tkPath)) {
+            Write-Error "Tk directory not found at: $tkPath"
+            exit 1
+        }
+        
+       
         pyinstaller --noconfirm --noconsole --onedir --name=Launcher `
           --icon="images/icon.ico" `
           --hidden-import=tkinter `
           --hidden-import=requests `
           --add-data="images;images" `
-          --add-binary "$pyPath\DLLs\tcl86t.dll;." `
-          --add-binary "$pyPath\DLLs\tk86t.dll;." `
           launcher.py
-
-        if (Test-Path "$pyPath\tcl") {
-            xcopy "$pyPath\tcl\tcl*" "dist\Launcher\tcl\" /E /I /Y
-            xcopy "$pyPath\tcl\tk*" "dist\Launcher\tk\" /E /I /Y
-        } else {
-            xcopy "$pyPath\Lib\tkinter\tcl" "dist\Launcher\tcl\" /E /I /Y
-            xcopy "$pyPath\Lib\tkinter\tk" "dist\Launcher\tk\" /E /I /Y
-        }
+        
+       
+        Write-Host "Copying Tcl/Tk to dist/Launcher..."
+        xcopy "$tclPath" "distLaunchertcl" /E /I /Y
+        xcopy "$tkPath" "distLaunchertk" /E /I /Y
+        
+        Write-Host "Tcl/Tk copied successfully!"
+        dir "distLauncher"
+    
     - name: Upload game artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -89,20 +134,26 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
+    
     - uses: actions/setup-go@v4
       with:
         go-version: '1.23'
+    
     - name: Download and verify Go dependencies
       shell: pwsh
       run: |
         cd server
         go mod tidy
+    
     - name: Build Go Server Binary (.exe)
       shell: pwsh
       run: |
         cd server
         go build -o ../server.exe .
-    - name: Upload server artifact               
+        Write-Host "Server binary built successfully!"
+        dir ..\server.exe
+    
+    - name: Upload server artifact
       uses: actions/upload-artifact@v4
       with:
         name: server-exe
@@ -122,18 +173,27 @@ jobs:
     - name: Assemble final release structure
       shell: pwsh
       run: |
-        New-Item -ItemType Directory -Force -Path "Final_Release\Game"
-        New-Item -ItemType Directory -Force -Path "Final_Release\Server"
+        New-Item -ItemType Directory -Force -Path "Final_ReleaseGame"
+        New-Item -ItemType Directory -Force -Path "Final_ReleaseServer"
 
-        # Копируем клиент с перезаписью (-Force), чтобы избежать конфликтов одинаковых библиотек
-        Copy-Item "artifacts\game-build\main\*" "Final_Release\Game\" -Recurse -Force
-        Copy-Item "artifacts\game-build\Launcher\*" "Final_Release\Game\" -Recurse -Force
+       
+        Write-Host "Copying game client..."
+        Copy-Item "artifactsgame-buildmain*" "Final_ReleaseGame" -Recurse -Force
+        Copy-Item "artifactsgame-buildLauncher*" "Final_ReleaseGame" -Recurse -Force
 
-        # Копируем сервер
-        Copy-Item "artifacts\server-exe\server.exe" "Final_Release\Server\"
+       
+        Write-Host "Copying server..."
+        Copy-Item "artifactsserver-exeserver.exe" "Final_ReleaseServerserver.exe"
+        
+       
+        Write-Host "=== Game Release ==="
+        dir "Final_ReleaseGame" -Recurse
+        Write-Host "=== Server Release ==="
+        dir "Final_ReleaseServer" -Recurse
 
-        # Создаём ZIP
-        Compress-Archive -Path "Final_Release\*" -DestinationPath "Leagueofadventures.zip"
+       
+        Compress-Archive -Path "Final_Release*" -DestinationPath "Leagueofadventures.zip"
+        Write-Host "Release archive created!"
 
     - name: Upload final artifact to workflow
       uses: actions/upload-artifact@v4

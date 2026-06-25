@@ -84,16 +84,16 @@ jobs:
             --add-data="images;images" `
             launcher.py
           
-          New-Item -ItemType Directory -Force -Path "distLaunchertcl"
-          New-Item -ItemType Directory -Force -Path "distLaunchertk"
-          xcopy "$tclPath" "distLaunchertcl" /E /I /Y
-          xcopy "$tkPath" "distLaunchertk" /E /I /Y
+          New-Item -ItemType Directory -Force -Path "dist\Launcher\tcl"
+          New-Item -ItemType Directory -Force -Path "dist\Launcher\tk"
+          xcopy "$tclPath" "dist\Launcher\tcl" /E /I /Y
+          xcopy "$tkPath" "dist\Launcher\tk" /E /I /Y
           
           if (Test-Path "$pyPrefix\tcl86t.dll") {
-              Copy-Item "$pyPrefix\tcl86t.dll" "distLauncher" -Force
+              Copy-Item "$pyPrefix\tcl86t.dll" "dist\Launcher" -Force
           }
           if (Test-Path "$pyPrefix\tk86t.dll") {
-              Copy-Item "$pyPrefix\tk86t.dll" "distLauncher" -Force
+              Copy-Item "$pyPrefix\tk86t.dll" "dist\Launcher" -Force
           }
       
       - name: Upload game artifacts
@@ -148,9 +148,9 @@ jobs:
           New-Item -ItemType Directory -Force -Path "Final_ReleaseGame"
           New-Item -ItemType Directory -Force -Path "Final_ReleaseServer"
 
-          Copy-Item "artifactsgame-buildmain*" "Final_ReleaseGame" -Recurse -Force
-          Copy-Item "artifactsgame-buildLauncher*" "Final_ReleaseGame" -Recurse -Force
-          Copy-Item "artifactsserver-exeserver.exe" "Final_ReleaseServerserver.exe"
+          Copy-Item "artifacts\game-build\main\*" "Final_ReleaseGame\" -Recurse -Force
+          Copy-Item "artifacts\game-build\Launcher\*" "Final_ReleaseGame\" -Recurse -Force
+          Copy-Item "artifacts\server-exe\server.exe" "Final_ReleaseServer\server.exe" -Force
 
           Compress-Archive -Path "Final_Release*" -DestinationPath "Leagueofadventures.zip"
 

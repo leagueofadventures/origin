@@ -1,530 +1,586 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk, messagebox, scrolledtext
 import requests
 import json
-import subprocess
 import os
 import sys
-import hashlib
+import subprocess
 import threading
-import zipfile
-import tempfile
-import shutil
+import hashlib
 from pathlib import Path
 
-# Настройки сервера (порт 8080)
-SERVER_HOST = "127.0.0.1:8080"              # добавлен порт 8080
-BASE_URL = f"http://{SERVER_HOST}"          # http://127.0.0.1:8080
-CLIENT_VERSION = "1.0.0"                   # Будет обновляться автоматически
-UPDATE_CHECK_TIMEOUT = 10
-DOWNLOAD_TIMEOUT = 30
-
-class Launcher:
+class GameLauncher:
     def __init__(self, root):
         self.root = root
-        self.root.title("League of adventures - Launcher")
-        self.root.geometry("450x400")
+        self.root.title("League of Adventures - Launcher")
+        self.root.geometry("650x600")
         self.root.resizable(True, True)
         
-        # Центрирование окна
-        self.center_window()
-        
-        # Переменные
+        # Конфигурация
+        self.current_version = "1.0.0"
+        self.update_zip_path = "update.zip"
+        self.game_exe = "game.exe" if sys.platform == "win32" else "python"
+        self.game_script = "main.py"
+        self.token_file = "auth_token.txt"
+        self.config_file = "launcher_config.json"
         self.token = None
-        self.username = tk.StringVar()
-        self.password = tk.StringVar()
-        self.is_downloading = False
-        self.download_thread = None
-        self.server_version = CLIENT_VERSION
         
-        # Создание виджетов
-        self.create_widgets()
+        # Пресеты серверов (потому что хардкодить URL — это моветон)
+        self.server_presets = {
+            "🌐 Render (Production)": "wss://leagueofadventures.onrender.com/ws",
+            "🏠 Локальный (localhost)": "ws://localhost:8080/ws",
+            "🔧 Локальный (127.0.0.1)": "ws://127.0.0.1:8080/ws",
+            "✏️ Свой сервер": ""
+        }
         
-        # Проверка обновлений при запуске
-        self.root.after(1000, self.auto_check_updates)
-
-    def center_window(self):
-        """Центрирует окно на экране"""
-        self.root.update_idletasks()
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.root.winfo_screenheight() // 2) - (height // 2)
-        self.root.geometry(f'450x400+{x}+{y}')
-
-    def create_widgets(self):
-        # Основной фрейм
-        main_frame = tk.Frame(self.root, padx=20, pady=20)
-        main_frame.pack(fill=tk.BOTH, expand=True)
-
+        self.setup_ui()
+        self.load_config()
+        self.load_saved_token()
+        
+    def setup_ui(self):
         # Заголовок
-        title_label = tk.Label(main_frame, text="League of adventures", 
-                              font=("Arial", 18, "bold"), fg="#2E86AB")
-        title_label.pack(pady=10)
+        title_frame = tk.Frame(self.root, bg="#2c3e50", height=80)
+        title_frame.pack(fill=tk.X)
+        title_frame.pack_propagate(False)
         
-        # Версия
-        self.version_label = tk.Label(main_frame, text=f"Версия клиента: {CLIENT_VERSION}", 
-                                    font=("Arial", 10), fg="#666")
-        self.version_label.pack(pady=5)
+        title_label = tk.Label(
+            title_frame, 
+            text="⚔️ LEAGUE OF ADVENTURES ⚔️",
+            font=("Arial", 24, "bold"),
+            fg="#ecf0f1",
+            bg="#2c3e50"
+        )
+        title_label.pack(pady=20)
         
-        # Статус сервера
-        self.server_version_label = tk.Label(main_frame, text="Версия сервера: проверка...", 
-                                           font=("Arial", 9), fg="#666")
-        self.server_version_label.pack(pady=2)
-
-        # Поля ввода
-        input_frame = tk.Frame(main_frame)
-        input_frame.pack(pady=20, fill=tk.X)
-
-        tk.Label(input_frame, text="Логин:", font=("Arial", 10)).grid(row=0, column=0, sticky="w", padx=5, pady=8)
-        self.username_entry = tk.Entry(input_frame, textvariable=self.username, width=25, font=("Arial", 10))
-        self.username_entry.grid(row=0, column=1, padx=5, pady=8, sticky="ew")
-        self.username_entry.bind('<Return>', lambda e: self.login())
-
-        tk.Label(input_frame, text="Пароль:", font=("Arial", 10)).grid(row=1, column=0, sticky="w", padx=5, pady=8)
-        self.password_entry = tk.Entry(input_frame, textvariable=self.password, show="*", width=25, font=("Arial", 10))
-        self.password_entry.grid(row=1, column=1, padx=5, pady=8, sticky="ew")
-        self.password_entry.bind('<Return>', lambda e: self.login())
+        # Основная область
+        main_frame = tk.Frame(self.root, bg="#34495e")
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        input_frame.columnconfigure(1, weight=1)
-
+        # === БЛОК ВЫБОРА СЕРВЕРА ===
+        server_frame = tk.LabelFrame(
+            main_frame, 
+            text="🌍 Выбор сервера",
+            font=("Arial", 11, "bold"),
+            fg="#ecf0f1",
+            bg="#34495e",
+            bd=2
+        )
+        server_frame.pack(fill=tk.X, pady=10)
+        
+        # Выпадающий список с пресетами
+        preset_frame = tk.Frame(server_frame, bg="#34495e")
+        preset_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        tk.Label(
+            preset_frame,
+            text="Пресет:",
+            font=("Arial", 10),
+            fg="#ecf0f1",
+            bg="#34495e",
+            width=10,
+            anchor=tk.W
+        ).pack(side=tk.LEFT)
+        
+        self.server_preset_var = tk.StringVar()
+        self.server_preset_combo = ttk.Combobox(
+            preset_frame,
+            textvariable=self.server_preset_var,
+            values=list(self.server_presets.keys()),
+            state="readonly",
+            width=30,
+            font=("Arial", 10)
+        )
+        self.server_preset_combo.pack(side=tk.LEFT, padx=5)
+        self.server_preset_combo.bind("<<ComboboxSelected>>", self.on_preset_selected)
+        
+        # Поле для ручного ввода URL
+        url_frame = tk.Frame(server_frame, bg="#34495e")
+        url_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        tk.Label(
+            url_frame,
+            text="URL:",
+            font=("Arial", 10),
+            fg="#ecf0f1",
+            bg="#34495e",
+            width=10,
+            anchor=tk.W
+        ).pack(side=tk.LEFT)
+        
+        self.server_url_var = tk.StringVar()
+        self.server_url_entry = tk.Entry(
+            url_frame,
+            textvariable=self.server_url_var,
+            font=("Consolas", 10),
+            bg="#2c3e50",
+            fg="#ecf0f1",
+            insertbackground="#ecf0f1",
+            relief=tk.FLAT,
+            bd=2
+        )
+        self.server_url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        
+        # Индикатор статуса сервера
+        self.server_status = tk.Label(
+            server_frame,
+            text="● Статус: не проверено",
+            font=("Arial", 9),
+            fg="#f39c12",
+            bg="#34495e"
+        )
+        self.server_status.pack(padx=10, pady=5, anchor=tk.W)
+        
+        # Кнопка проверки сервера
+        self.check_server_btn = tk.Button(
+            server_frame,
+            text="🔍 Проверить соединение",
+            font=("Arial", 9, "bold"),
+            bg="#3498db",
+            fg="white",
+            relief=tk.FLAT,
+            cursor="hand2",
+            command=self.check_server_connection
+        )
+        self.check_server_btn.pack(padx=10, pady=5, anchor=tk.W)
+        
+        # === ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ ===
+        
+        # Информация о версии
+        version_frame = tk.Frame(main_frame, bg="#34495e")
+        version_frame.pack(fill=tk.X, pady=10)
+        
+        self.version_label = tk.Label(
+            version_frame,
+            text=f"Текущая версия: {self.current_version}",
+            font=("Arial", 11),
+            fg="#ecf0f1",
+            bg="#34495e"
+        )
+        self.version_label.pack(side=tk.LEFT)
+        
+        self.status_label = tk.Label(
+            version_frame,
+            text="Готов к запуску",
+            font=("Arial", 10),
+            fg="#2ecc71",
+            bg="#34495e"
+        )
+        self.status_label.pack(side=tk.RIGHT)
+        
+        # Прогресс-бар
+        self.progress_frame = tk.Frame(main_frame, bg="#34495e")
+        self.progress_frame.pack(fill=tk.X, pady=10)
+        
+        self.progress_bar = ttk.Progressbar(
+            self.progress_frame,
+            orient=tk.HORIZONTAL,
+            length=610,
+            mode='determinate'
+        )
+        self.progress_bar.pack(fill=tk.X)
+        
+        self.progress_label = tk.Label(
+            self.progress_frame,
+            text="",
+            font=("Arial", 9),
+            fg="#bdc3c7",
+            bg="#34495e"
+        )
+        self.progress_label.pack(pady=5)
+        
+        # Лог
+        log_frame = tk.Frame(main_frame, bg="#34495e")
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=10)
+        
+        tk.Label(
+            log_frame,
+            text="Лог:",
+            font=("Arial", 10, "bold"),
+            fg="#ecf0f1",
+            bg="#34495e"
+        ).pack(anchor=tk.W)
+        
+        self.log_text = scrolledtext.ScrolledText(
+            log_frame,
+            height=8,
+            font=("Consolas", 9),
+            bg="#2c3e50",
+            fg="#ecf0f1",
+            state=tk.DISABLED
+        )
+        self.log_text.pack(fill=tk.BOTH, expand=True, pady=5)
+        
         # Кнопки
-        button_frame = tk.Frame(main_frame)
-        button_frame.pack(pady=15)
-
-        self.login_button = tk.Button(button_frame, text="Войти", command=self.login,
-                                     bg="#27AE60", fg="white", font=("Arial", 10, "bold"),
-                                     width=12, height=1)
-        self.login_button.grid(row=0, column=0, padx=5)
-
-        self.register_button = tk.Button(button_frame, text="Регистрация", command=self.register,
-                                        bg="#3498DB", fg="white", font=("Arial", 10, "bold"),
-                                        width=12, height=1)
-        self.register_button.grid(row=0, column=1, padx=5)
-
-        # Кнопка выхода
-        self.exit_button = tk.Button(button_frame, text="Выход", command=self.safe_exit,
-                                    bg="#E74C3C", fg="white", font=("Arial", 10, "bold"),
-                                    width=12, height=1)
-        self.exit_button.grid(row=0, column=2, padx=5)      
-
-        # Прогресс-бар для обновлений
-        self.progress_frame = tk.Frame(main_frame)
-        self.progress_frame.pack(pady=10, fill="x")
+        button_frame = tk.Frame(main_frame, bg="#34495e")
+        button_frame.pack(fill=tk.X, pady=10)
         
-        self.progress_label = tk.Label(self.progress_frame, text="", font=("Arial", 9))
-        self.progress_label.pack(pady=2)
+        self.check_update_btn = tk.Button(
+            button_frame,
+            text="🔄 Обновления",
+            font=("Arial", 11, "bold"),
+            bg="#3498db",
+            fg="white",
+            relief=tk.FLAT,
+            cursor="hand2",
+            command=self.check_updates
+        )
+        self.check_update_btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
         
-        self.progress = ttk.Progressbar(self.progress_frame, orient="horizontal", 
-                                       length=350, mode="determinate")
-        self.progress.pack(pady=2, fill="x")
+        self.play_btn = tk.Button(
+            button_frame,
+            text="▶️ ИГРАТЬ",
+            font=("Arial", 12, "bold"),
+            bg="#2ecc71",
+            fg="white",
+            relief=tk.FLAT,
+            cursor="hand2",
+            command=self.launch_game
+        )
+        self.play_btn.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
         
-        self.progress_percent = tk.Label(self.progress_frame, text="", font=("Arial", 9))
-        self.progress_percent.pack(pady=2)
+        # Статус-бар
+        status_bar = tk.Frame(self.root, bg="#2c3e50", height=30)
+        status_bar.pack(fill=tk.X, side=tk.BOTTOM)
+        status_bar.pack_propagate(False)
         
-        self.hide_progress()
-
-        # Статус
-        self.status_label = tk.Label(main_frame, text="Готов к работе", 
-                                    font=("Arial", 9), fg="#666", wraplength=400)
-        self.status_label.pack(pady=10)
-                      
-        # Информация об обновлениях 
-        self.update_info_label = tk.Label(main_frame, text="", font=("Arial", 8), fg="#888")
-        self.update_info_label.pack(pady=5)
-
-        # Бинд для закрытия окна
-        self.root.protocol("WM_DELETE_WINDOW", self.safe_exit)
-
-    def hide_progress(self):
-        """Скрывает элементы прогресса"""
-        self.progress_frame.pack_forget()
-
-    def show_progress(self):
-        """Показывает элементы прогресса"""
-        self.progress_frame.pack(pady=10, fill="x")
-
-    def safe_exit(self):
-        """Безопасный выход с проверкой загрузок"""
-        if self.is_downloading:
-            if not messagebox.askyesno("Выход", "Идет загрузка обновления. Прервать и выйти?"):
-                return
-        self.root.quit()
-        self.root.destroy()
-
-    def update_status(self, message, is_error=False):
-        """Обновляет статус с цветом"""
-        color = "#E74C3C" if is_error else "#27AE60"
-        self.status_label.config(text=message, fg=color)
-        self.root.update_idletasks()
-
-    def update_server_info(self, version, has_update=False):
-        """Обновляет информацию о сервере"""
-        if has_update:
-            self.server_version_label.config(
-                text=f"Версия сервера: {version} (доступно обновление!)", 
-                fg="#E74C3C"
-            )
+        self.connection_status = tk.Label(
+            status_bar,
+            text="● Сервер: не выбран",
+            font=("Arial", 9),
+            fg="#f39c12",
+            bg="#2c3e50"
+        )
+        self.connection_status.pack(side=tk.LEFT, padx=10, pady=5)
+        
+    def on_preset_selected(self, event):
+        """Обработка выбора пресета сервера"""
+        selected = self.server_preset_var.get()
+        if selected in self.server_presets:
+            url = self.server_presets[selected]
+            self.server_url_var.set(url)
+            self.log(f"Выбран пресет: {selected}")
+            
+            # Блокируем редактирование, если не "Свой сервер"
+            if selected == "✏️ Свой сервер":
+                self.server_url_entry.config(state=tk.NORMAL)
+            else:
+                self.server_url_entry.config(state=tk.NORMAL)  # Всегда разрешаем редактировать
+            
+            # Сбрасываем статус
+            self.server_status.config(text="● Статус: не проверено", fg="#f39c12")
+            self.connection_status.config(text="● Сервер: не проверен", fg="#f39c12")
+            
+            # Автосохранение
+            self.save_config()
+    
+    def get_server_url(self):
+        """Получение текущего URL сервера"""
+        url = self.server_url_var.get().strip()
+        if not url:
+            return None
+        
+        # Конвертируем ws:// в http:// для REST-запросов
+        if url.startswith("wss://"):
+            return url.replace("wss://", "https://").replace("/ws", "")
+        elif url.startswith("ws://"):
+            return url.replace("ws://", "http://").replace("/ws", "")
+        
+        return url
+    
+    def check_server_connection(self):
+        """Проверка соединения с сервером"""
+        url = self.get_server_url()
+        if not url:
+            messagebox.showwarning("Внимание", "Укажите URL сервера!")
+            return
+        
+        self.check_server_btn.config(state=tk.DISABLED)
+        self.server_status.config(text="● Статус: проверка...", fg="#f39c12")
+        self.connection_status.config(text="● Сервер: проверка...", fg="#f39c12")
+        self.log(f"Проверка соединения с {url}...")
+        
+        def check():
+            try:
+                response = requests.get(f"{url}/", timeout=5)
+                if response.status_code == 200:
+                    self.server_status.config(text="● Статус: онлайн ✓", fg="#2ecc71")
+                    self.connection_status.config(text="● Сервер: онлайн ✓", fg="#2ecc71")
+                    self.log("Сервер доступен и отвечает")
+                else:
+                    self.server_status.config(text=f"● Статус: код {response.status_code}", fg="#e74c3c")
+                    self.connection_status.config(text="● Сервер: проблемы", fg="#e74c3c")
+                    self.log(f"Сервер вернул статус {response.status_code}")
+            except requests.exceptions.Timeout:
+                self.server_status.config(text="● Статус: таймаут", fg="#e74c3c")
+                self.connection_status.config(text="● Сервер: таймаут", fg="#e74c3c")
+                self.log("Сервер не отвечает (таймаут)")
+            except requests.exceptions.ConnectionError:
+                self.server_status.config(text="● Статус: нет соединения", fg="#e74c3c")
+                self.connection_status.config(text="● Сервер: недоступен", fg="#e74c3c")
+                self.log("Не удалось подключиться к серверу")
+            except Exception as e:
+                self.server_status.config(text="● Статус: ошибка", fg="#e74c3c")
+                self.connection_status.config(text="● Сервер: ошибка", fg="#e74c3c")
+                self.log(f"Ошибка проверки: {e}")
+            finally:
+                self.check_server_btn.config(state=tk.NORMAL)
+        
+        threading.Thread(target=check, daemon=True).start()
+    
+    def save_config(self):
+        """Сохранение конфигурации лаунчера"""
+        try:
+            config = {
+                "server_preset": self.server_preset_var.get(),
+                "server_url": self.server_url_var.get(),
+                "current_version": self.current_version
+            }
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            self.log(f"Ошибка сохранения конфига: {e}")
+    
+    def load_config(self):
+        """Загрузка конфигурации лаунчера"""
+        if os.path.exists(self.config_file):
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                
+                preset = config.get("server_preset", "🌐 Render (Production)")
+                url = config.get("server_url", "wss://leagueofadventures.onrender.com/ws")
+                
+                if preset in self.server_presets:
+                    self.server_preset_var.set(preset)
+                else:
+                    self.server_preset_var.set("✏️ Свой сервер")
+                
+                self.server_url_var.set(url)
+                self.log(f"Загружен конфиг: {preset}")
+            except Exception as e:
+                self.log(f"Ошибка загрузки конфига: {e}")
+                self.server_preset_var.set("🌐 Render (Production)")
+                self.server_url_var.set("wss://leagueofadventures.onrender.com/ws")
         else:
-            self.server_version_label.config(
-                text=f"Версия сервера: {version}", 
-                fg="#27AE60"
-            )
-
-    def auto_check_updates(self):
-        """Автоматическая проверка обновлений при запуске"""
+            # Первый запуск — ставим Render по умолчанию
+            self.server_preset_var.set("🌐 Render (Production)")
+            self.server_url_var.set("wss://leagueofadventures.onrender.com/ws")
+            self.log("Первый запуск, выбран сервер Render")
+            self.save_config()
+    
+    def log(self, message):
+        """Добавление сообщения в лог"""
+        self.log_text.config(state=tk.NORMAL)
+        self.log_text.insert(tk.END, f"[{self.get_time()}] {message}\n")
+        self.log_text.see(tk.END)
+        self.log_text.config(state=tk.DISABLED)
+        self.root.update_idletasks()
+        
+    def get_time(self):
+        """Получение текущего времени"""
+        from datetime import datetime
+        return datetime.now().strftime("%H:%M:%S")
+        
+    def check_updates(self):
+        """Проверка наличия обновлений"""
+        server_url = self.get_server_url()
+        if not server_url:
+            messagebox.showwarning("Внимание", "Укажите URL сервера!")
+            return
+            
+        self.check_update_btn.config(state=tk.DISABLED)
+        self.status_label.config(text="Проверка обновлений...", fg="#f39c12")
+        self.log(f"Проверка обновлений на {server_url}...")
+        
         def check():
             try:
                 response = requests.get(
-                    f"{BASE_URL}/check_update?version={CLIENT_VERSION}",
-                    timeout=UPDATE_CHECK_TIMEOUT
+                    f"{server_url}/check_update",
+                    params={"version": self.current_version},
+                    timeout=10
                 )
+                
                 if response.status_code == 200:
-                    update_info = response.json()
-                    self.server_version = update_info.get('latest_version', CLIENT_VERSION)
-                    has_update = update_info.get('update_available', False)
+                    data = response.json()
                     
-                    self.root.after(0, lambda: self.update_server_info(
-                        self.server_version, has_update
-                    ))
+                    if data.get("update_available"):
+                        latest_version = data.get("latest_version")
+                        self.log(f"Доступна новая версия: {latest_version}")
+                        
+                        if messagebox.askyesno(
+                            "Обновление доступно",
+                            f"Доступна версия {latest_version}\n"
+                            f"Текущая версия: {self.current_version}\n\n"
+                            f"Скачать обновление?"
+                        ):
+                            self.download_update()
+                        else:
+                            self.status_label.config(text="Обновление отменено", fg="#e74c3c")
+                    else:
+                        self.log("У вас последняя версия")
+                        self.status_label.config(text="Обновлений нет", fg="#2ecc71")
+                        messagebox.showinfo("Обновления", "У вас установлена последняя версия!")
+                else:
+                    self.log(f"Ошибка проверки обновлений: {response.status_code}")
+                    self.status_label.config(text="Ошибка проверки", fg="#e74c3c")
                     
-                    if has_update:
-                        self.root.after(0, lambda: self.update_info_label.config(
-                            text=f"Доступна новая версия {self.server_version}",
-                            fg="#E74C3C"
-                        ))
             except Exception as e:
-                print(f"Автопроверка обновлений: {e}")
-                self.root.after(0, lambda: self.server_version_label.config(
-                    text="Сервер: недоступен", 
-                    fg="#E74C3C"
-                ))
-
+                self.log(f"Ошибка проверки обновлений: {e}")
+                self.status_label.config(text="Ошибка сети", fg="#e74c3c")
+            finally:
+                self.check_update_btn.config(state=tk.NORMAL)
+        
         threading.Thread(target=check, daemon=True).start()
-
-    def login(self):
-        if self.is_downloading:
-            messagebox.showwarning("Внимание", "Дождитесь завершения загрузки")
-            return
-
-        username = self.username.get().strip()
-        password = self.password.get()
-
-        if not username or not password:
-            messagebox.showerror("Ошибка", "Введите логин и пароль")
-            return
-
-        self.set_buttons_state(False)
-        self.update_status("Выполняется вход...")
-
-        def do_login():
-            try:
-                response = requests.post(
-                    f"{BASE_URL}/login",
-                    json={"username": username, "password": password},
-                    timeout=UPDATE_CHECK_TIMEOUT
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("success"):
-                        self.token = data["token"]
-                        self.root.after(0, lambda: self.update_status("Вход успешен. Проверка обновлений..."))
-                        self.root.after(0, self.check_updates)
-                    else:
-                        self.root.after(0, lambda: messagebox.showerror(
-                            "Ошибка", 
-                            data.get("message", "Ошибка входа")
-                        ))
-                        self.root.after(0, lambda: self.update_status("Ошибка входа", True))
-                else:
-                    self.root.after(0, lambda: messagebox.showerror(
-                        "Ошибка", 
-                        f"Ошибка сервера: {response.status_code}"
-                    ))
-                    self.root.after(0, lambda: self.update_status("Ошибка сервера", True))
-                    
-            except requests.exceptions.Timeout:
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Ошибка", 
-                    "Таймаут подключения к серверу"
-                ))
-                self.root.after(0, lambda: self.update_status("Сервер недоступен", True))
-            except requests.exceptions.ConnectionError:
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Ошибка", 
-                    "Не удалось подключиться к серверу"
-                ))
-                self.root.after(0, lambda: self.update_status("Нет подключения", True))
-            except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Ошибка", 
-                    f"Неизвестная ошибка: {e}"
-                ))
-                self.root.after(0, lambda: self.update_status("Ошибка подключения", True))
-            finally:
-                self.root.after(0, lambda: self.set_buttons_state(True))
-
-        threading.Thread(target=do_login, daemon=True).start()
-
-    def register(self):
-        if self.is_downloading:
-            return
-
-        username = self.username.get().strip()
-        password = self.password.get()
-
-        if not username or not password:
-            messagebox.showerror("Ошибка", "Введите логин и пароль")
-            return
-
-        if len(username) < 3:
-            messagebox.showerror("Ошибка", "Логин должен содержать минимум 3 символа")
-            return
-
-        if len(password) < 4:
-            messagebox.showerror("Ошибка", "Пароль должен содержать минимум 4 символа")
-            return
-
-        self.set_buttons_state(False)
-        self.update_status("Регистрация...")
-
-        def do_register():
-            try:
-                response = requests.post(
-                    f"{BASE_URL}/register",
-                    json={"username": username, "password": password},
-                    timeout=UPDATE_CHECK_TIMEOUT
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("success"):
-                        self.root.after(0, lambda: messagebox.showinfo(
-                            "Успех", 
-                            "Регистрация успешна. Теперь войдите."
-                        ))
-                        self.root.after(0, lambda: self.update_status("Регистрация успешна"))
-                    else:
-                        self.root.after(0, lambda: messagebox.showerror(
-                            "Ошибка", 
-                            data.get("message", "Ошибка регистрации")
-                        ))
-                        self.root.after(0, lambda: self.update_status("Ошибка регистрации", True))
-                elif response.status_code == 409:
-                    self.root.after(0, lambda: messagebox.showerror(
-                        "Ошибка", 
-                        "Имя пользователя уже существует"
-                    ))
-                    self.root.after(0, lambda: self.update_status("Логин занят", True))
-                else:
-                    self.root.after(0, lambda: messagebox.showerror(
-                        "Ошибка", 
-                        f"Ошибка сервера: {response.status_code}"
-                    ))
-                    self.root.after(0, lambda: self.update_status("Ошибка сервера", True))
-                    
-            except requests.exceptions.Timeout:
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Ошибка", 
-                    "Таймаут подключения к серверу"
-                ))
-                self.root.after(0, lambda: self.update_status("Сервер недоступен", True))
-            except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Ошибка", 
-                    f"Ошибка подключения: {e}"
-                ))
-                self.root.after(0, lambda: self.update_status("Ошибка подключения", True))
-            finally:
-                self.root.after(0, lambda: self.set_buttons_state(True))
-
-        threading.Thread(target=do_register, daemon=True).start()
-
-    def check_updates(self):
-        """Проверяет наличие обновлений"""
-        self.update_status("Проверка обновлений...")
         
-        def do_check():
+    def download_update(self):
+        """Скачивание обновления"""
+        server_url = self.get_server_url()
+        if not server_url:
+            return
+            
+        self.status_label.config(text="Скачивание обновления...", fg="#f39c12")
+        self.log("Начало скачивания обновления...")
+        self.progress_bar['value'] = 0
+        
+        def download():
             try:
                 response = requests.get(
-                    f"{BASE_URL}/check_update?version={CLIENT_VERSION}",
-                    timeout=UPDATE_CHECK_TIMEOUT
-                )
-                
-                if response.status_code == 200:
-                    update_info = response.json()
-                    self.root.after(0, lambda: self.handle_update_check(update_info))
-                else:
-                    self.root.after(0, lambda: self.update_status("Сервер недоступен, запуск игры..."))
-                    self.root.after(0, self.launch_game)
-                    
-            except Exception as e:
-                print(f"Ошибка проверки обновлений: {e}")
-                self.root.after(0, lambda: self.update_status("Не удалось проверить обновления, запуск игры..."))
-                self.root.after(0, self.launch_game)
-
-        threading.Thread(target=do_check, daemon=True).start()
-
-    def handle_update_check(self, update_info):
-        """Обрабатывает результат проверки обновлений"""
-        if update_info.get("update_available"):
-            latest_version = update_info.get("latest_version", "неизвестно")
-            
-            # Обновляем информацию о сервере
-            self.root.after(0, lambda: self.update_server_info(latest_version, True))
-            
-            if messagebox.askyesno(
-                "Доступно обновление", 
-                f"Доступна версия {latest_version} (у вас {CLIENT_VERSION}).\n"
-                f"Хотите обновиться перед запуском игры?"
-            ):
-                self.download_update(update_info)
-            else:
-                self.launch_game()
-        else:
-            self.root.after(0, lambda: self.update_server_info(
-                update_info.get("latest_version", CLIENT_VERSION), False
-            ))
-            self.update_status("Обновлений не требуется")
-            self.launch_game()
-
-    def download_update(self, update_info):
-        """Скачивает и устанавливает обновление"""
-        if self.is_downloading:
-            return
-
-        self.is_downloading = True
-        self.set_buttons_state(False)
-        self.show_progress()
-        
-        self.progress["value"] = 0
-        self.progress_label.config(text="Подготовка к загрузке...")
-        self.progress_percent.config(text="0%")
-
-        def do_download():
-            temp_dir = None
-            try:
-                # Создаем временную директорию
-                temp_dir = tempfile.mkdtemp()
-                update_zip = os.path.join(temp_dir, "update.zip")
-                
-                # Загрузка файла
-                self.root.after(0, lambda: self.progress_label.config(text="Скачивание обновления..."))
-                
-                response = requests.get(
-                    f"{BASE_URL}/download_update", 
+                    f"{server_url}/download_update",
                     stream=True,
-                    timeout=DOWNLOAD_TIMEOUT
+                    timeout=30
                 )
                 
-                if response.status_code != 200:
-                    raise Exception(f"HTTP {response.status_code}")
+                if response.status_code == 200:
+                    total_size = int(response.headers.get('content-length', 0))
+                    downloaded = 0
+                    
+                    with open(self.update_zip_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                
+                                if total_size > 0:
+                                    percent = (downloaded / total_size) * 100
+                                    self.progress_bar['value'] = percent
+                                    self.progress_label.config(
+                                        text=f"Скачано: {downloaded // 1024} KB / {total_size // 1024} KB ({percent:.1f}%)"
+                                    )
+                                    
+                    self.log("Обновление скачано")
+                    self.install_update()
+                else:
+                    self.log(f"Ошибка скачивания: {response.status_code}")
+                    self.status_label.config(text="Ошибка скачивания", fg="#e74c3c")
+                    
+            except Exception as e:
+                self.log(f"Ошибка скачивания: {e}")
+                self.status_label.config(text="Ошибка сети", fg="#e74c3c")
+        
+        threading.Thread(target=download, daemon=True).start()
+        
+    def install_update(self):
+        """Установка обновления"""
+        self.status_label.config(text="Установка обновления...", fg="#f39c12")
+        self.log("Установка обновления...")
+        
+        def install():
+            try:
+                import zipfile
                 
-                total_size = int(response.headers.get('content-length', 0))
-                downloaded = 0
-                
-                with open(update_zip, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if not self.is_downloading:  # Проверка отмены
-                            break
-                        if chunk:
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            if total_size > 0:
-                                percent = (downloaded / total_size) * 100
-                                self.root.after(0, lambda: self.update_progress(
-                                    percent, 
-                                    f"Скачивание: {downloaded//1024}KB / {total_size//1024}KB"
-                                ))
-
-                if not self.is_downloading:
-                    return
-
-                # Распаковка
-                self.root.after(0, lambda: self.progress_label.config(text="Распаковка обновления..."))
-                self.root.after(0, lambda: self.progress_percent.config(text=""))
-                
-                with zipfile.ZipFile(update_zip, 'r') as zip_ref:
+                with zipfile.ZipFile(self.update_zip_path, 'r') as zip_ref:
                     zip_ref.extractall(".")
                 
-                # Обновление завершено
-                self.root.after(0, lambda: self.update_status("Обновление завершено!"))
-                self.root.after(0, self.launch_game)
+                os.remove(self.update_zip_path)
+                
+                self.log("Обновление установлено")
+                self.status_label.config(text="Обновление установлено", fg="#2ecc71")
+                messagebox.showinfo("Обновление", "Обновление успешно установлено!")
                 
             except Exception as e:
-                self.root.after(0, lambda: messagebox.showerror(
-                    "Ошибка обновления", 
-                    f"Не удалось установить обновление: {e}"
-                ))
-                self.root.after(0, lambda: self.update_status("Ошибка обновления", True))
-                self.root.after(0, self.launch_game)  # Запускаем игру даже при ошибке
-            finally:
-                # Очистка
-                if temp_dir and os.path.exists(temp_dir):
-                    try:
-                        shutil.rmtree(temp_dir)
-                    except:
-                        pass
-                self.is_downloading = False
-                self.root.after(0, lambda: self.set_buttons_state(True))
-                self.root.after(0, self.hide_progress)
-
-        self.download_thread = threading.Thread(target=do_download, daemon=True)
-        self.download_thread.start()
-
-    def update_progress(self, value, text):
-        """Обновляет прогресс-бар"""
-        self.progress["value"] = value
-        self.progress_label.config(text=text)
-        self.progress_percent.config(text=f"{int(value)}%")
-
-    def launch_game(self):
-        """Запускает игру"""
-        self.update_status("Запуск игры...")
+                self.log(f"Ошибка установки: {e}")
+                self.status_label.config(text="Ошибка установки", fg="#e74c3c")
         
+        threading.Thread(target=install, daemon=True).start()
+        
+    def save_token(self, token):
+        """Сохранение токена в файл"""
         try:
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            # Проверяем существование main.py
-            if getattr(sys, 'frozen', False):
-                game_path = os.path.join(script_dir, "Game", "main.exe")
-                cmd = [game_path]
-            else:
-                print('Python')
-                game_path = os.path.join(script_dir, 'main.py')
-                cmd = [sys.executable, game_path]
-            
-            if not os.path.exists(game_path):
-                messagebox.showerror("Ошибка", f"Файл игры не найден: {game_path}")
-                self.update_status("Файл игры не найден", True)
-                return
-
-            # Подготавливаем окружение
-            env = os.environ.copy()
-            if self.token:
-                env["GAME_TOKEN"] = self.token
-
-            # WebSocket URL с портом 8080
-            ws_url = f"ws://{SERVER_HOST}/ws"
-            cmd.extend(["--server", ws_url])
-            
-            # Запускаем игру
-            subprocess.Popen(cmd, env=env)
-            
-            self.update_status("Игра запущена!")
-            
+            with open(self.token_file, 'w') as f:
+                f.write(token)
+            self.log("Токен сохранён")
         except Exception as e:
-            messagebox.showerror("Ошибка", f"Не удалось запустить игру: {e}")
-            self.update_status("Ошибка запуска", True)
+            self.log(f"Ошибка сохранения токена: {e}")
+            
+    def load_saved_token(self):
+        """Загрузка сохранённого токена"""
+        if os.path.exists(self.token_file):
+            try:
+                with open(self.token_file, 'r') as f:
+                    self.token = f.read().strip()
+                self.log("Загружен сохранённый токен")
+            except Exception as e:
+                self.log(f"Ошибка загрузки токена: {e}")
+                self.token = None
+                
+    def launch_game(self):
+        """Запуск игры"""
+        server_url = self.server_url_var.get().strip()
+        if not server_url:
+            messagebox.showwarning("Внимание", "Укажите URL сервера!")
+            return
+        
+        # Сохраняем конфиг перед запуском
+        self.save_config()
+        
+        self.play_btn.config(state=tk.DISABLED)
+        self.status_label.config(text="Запуск игры...", fg="#f39c12")
+        self.log(f"Запуск игры с сервером: {server_url}")
+        
+        def launch():
+            try:
+                if sys.platform == "win32":
+                    cmd = [self.game_exe]
+                else:
+                    cmd = ["python3", self.game_script]
+                
+                # Добавляем аргументы
+                cmd.extend(["--server", server_url])
+                
+                if self.token:
+                    cmd.extend(["--token", self.token])
+                
+                self.log(f"Команда: {' '.join(cmd)}")
+                
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                
+                self.log("Игра запущена")
+                self.status_label.config(text="Игра запущена", fg="#2ecc71")
+                
+                stdout, stderr = process.communicate()
+                
+                if process.returncode != 0:
+                    self.log(f"Игра завершилась с ошибкой: {process.returncode}")
+                    if stderr:
+                        self.log(f"Ошибка: {stderr.decode('utf-8', errors='ignore')}")
+                else:
+                    self.log("Игра завершена")
+                    
+            except Exception as e:
+                self.log(f"Ошибка запуска: {e}")
+                self.status_label.config(text="Ошибка запуска", fg="#e74c3c")
+                messagebox.showerror("Ошибка", f"Не удалось запустить игру:\n{e}")
+            finally:
+                self.play_btn.config(state=tk.NORMAL)
+        
+        threading.Thread(target=launch, daemon=True).start()
 
-    def set_buttons_state(self, enabled):
-        """Включает/отключает кнопки"""
-        state = "normal" if enabled else "disabled"
-        self.login_button.config(state=state)
-        self.register_button.config(state=state)
-        self.exit_button.config(state=state)
 
 if __name__ == "__main__":
     root = tk.Tk()
-    launcher = Launcher(root)
+    app = GameLauncher(root)
     root.mainloop()

@@ -1,0 +1,5 @@
+{
+  "server_preset": "🌐 Render (Production)",
+  "server_url": "wss://leagueofadventures.onrender.com/ws",
+  "current_version": "1.0.0"
+}

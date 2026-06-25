@@ -2,20 +2,19 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"math"
 	"math/rand"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	_ "modernc.org/sqlite"
@@ -28,23 +27,27 @@ var upgrader = websocket.Upgrader{
 }
 
 type Player struct {
-	ID         string    `json:"id"`
-	Username   string    `json:"username"`
-	X          float64   `json:"x"`
-	Y          float64   `json:"y"`
-	Direction  string    `json:"direction"`
-	Moving     bool      `json:"moving"`
-	Attacking  bool      `json:"attacking"`
-	Hurt       bool      `json:"hurt"`
-	Dead       bool      `json:"dead"`
-	Health     int       `json:"health"`
-	Level      int       `json:"level"`
-	IP         string    `json:"ip"`
-	IsAdmin    bool      `json:"is_admin"`
-	Visible    bool      `json:"visible"`
-	LastUpdate time.Time `json:"-"`
-	LastAttack time.Time `json:"-"`
-	LastHurt   time.Time `json:"-"`
+	ID             string    `json:"id"`
+	Username       string    `json:"username"`
+	X              float64   `json:"x"`
+	Y              float64   `json:"y"`
+	Direction      string    `json:"direction"`
+	Moving         bool      `json:"moving"`
+	Attacking      bool      `json:"attacking"`
+	Hurt           bool      `json:"hurt"`
+	Dead           bool      `json:"dead"`
+	Health         int       `json:"health"`
+	MaxHealth      int       `json:"max_health"`
+	Level          int       `json:"level"`
+	Exp            int       `json:"exp"`
+	ExpToNextLevel int       `json:"exp_to_next_level"`
+	Damage         int       `json:"damage"`
+	IP             string    `json:"ip"`
+	IsAdmin        bool      `json:"is_admin"`
+	Visible        bool      `json:"visible"`
+	LastUpdate     time.Time `-`
+	LastAttack     time.Time `-`
+	LastHurt       time.Time `-`
 }
 
 type Mob struct {
@@ -53,8 +56,10 @@ type Mob struct {
 	Y          float64   `json:"y"`
 	Direction  string    `json:"direction"`
 	Health     int       `json:"health"`
-	LastAttack time.Time `json:"-"`
-	LastUpdate time.Time `json:"-"`
+	MaxHealth  int       `json:"max_health"`
+	ExpReward  int       `json:"exp_reward"`
+	LastAttack time.Time `-`
+	LastUpdate time.Time `-`
 }
 
 type Projectile struct {
@@ -64,8 +69,9 @@ type Projectile struct {
 	DX         float64   `json:"dx"`
 	DY         float64   `json:"dy"`
 	OwnerID    string    `json:"owner_id"`
-	OwnerType  string    `json:"owner_type"` // "player" или "mob"
-	LastUpdate time.Time `json:"-"`
+	OwnerType  string    `json:"owner_type"`
+	Damage     int       `json:"damage"`
+	LastUpdate time.Time `-`
 }
 
 type GameState struct {
@@ -82,15 +88,17 @@ type ChatMessage struct {
 }
 
 type ClientMessage struct {
-	Type   string `json:"type"`
-	Left   bool   `json:"left,omitempty"`
-	Right  bool   `json:"right,omitempty"`
-	Up     bool   `json:"up,omitempty"`
-	Down   bool   `json:"down,omitempty"`
-	Attack bool   `json:"attack,omitempty"`
-	Chat   string `json:"chat,omitempty"`
-	Target string `json:"target,omitempty"`
-	Token  string `json:"token,omitempty"`
+	Type    string  `json:"type"`
+	Left    bool    `json:"left,omitempty"`
+	Right   bool    `json:"right,omitempty"`
+	Up      bool    `json:"up,omitempty"`
+	Down    bool    `json:"down,omitempty"`
+	Attack  bool    `json:"attack,omitempty"`
+	Chat    string  `json:"chat,omitempty"`
+	Target  string  `json:"target,omitempty"`
+	TargetX float64 `json:"target_x,omitempty"`
+	TargetY float64 `json:"target_y,omitempty"`
+	Token   string  `json:"token,omitempty"`
 }
 
 type ServerMessage struct {
@@ -102,6 +110,12 @@ type ServerMessage struct {
 	Projectiles map[string]interface{} `json:"Projectiles,omitempty"`
 	ServerTime  int64                  `json:"server_time,omitempty"`
 	ChatHistory []ChatMessage          `json:"chat_history,omitempty"`
+	LevelUp     *LevelUpEvent          `json:"level_up,omitempty"`
+}
+
+type LevelUpEvent struct {
+	PlayerID string `json:"player_id"`
+	Level    int    `json:"level"`
 }
 
 type User struct {
@@ -139,46 +153,54 @@ type UpdateResponse struct {
 }
 
 var (
-	players        = make(map[string]*Player)
-	mobs           = make(map[string]*Mob)
-	projectiles    = make(map[string]*Projectile)
-	connections    = make(map[string]*websocket.Conn)
-	chatHistory    = []ChatMessage{}
-	mutex          = sync.RWMutex{}
-	nextMobID      = 0
-	nextProjID     = 0
-	startTime      = time.Now()
-	usersData      UsersData
-	jwtSecret      = []byte("Z1OyQ327YsrU42QAu/7lLoHSCelASteNxrv61W/Aa70=")
-	db             *sql.DB
-	currentVersion string
+	players     = make(map[string]*Player)
+	mobs        = make(map[string]*Mob)
+	projectiles = make(map[string]*Projectile)
+	connections = make(map[string]*websocket.Conn)
+	chatHistory = []ChatMessage{}
+	mutex       = sync.RWMutex{}
+	nextMobID   = 0
+	nextProjID  = 0
+	startTime   = time.Now()
+	usersData   UsersData
+	jwtSecret   []byte
+	db          *sql.DB
+	rng         = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	connectionCounts    = make(map[string]int)
+	connCountMutex      = sync.Mutex{}
+	maxConnectionsPerIP = 3
+
+	maxChatHistoryLength = 200
+	maxChatMessageLength = 500
 )
 
 const (
-	WIDTH            = 1920
-	HEIGHT           = 1080
-	MAP_WIDTH        = 10000
-	MAP_HEIGHT       = 10000
-	PLAYER_SPEED     = 5
-	MOB_SPEED        = 2
-	PROJECTILE_SPEED = 10
-	UPDATE_ZIP_PATH  = "./update.zip"
-	CHUNK_SIZE       = 8192
+	WIDTH             = 1920
+	HEIGHT            = 1080
+	MAP_WIDTH         = 10000
+	MAP_HEIGHT        = 10000
+	PLAYER_SPEED      = 5
+	MOB_SPEED         = 2
+	PROJECTILE_SPEED  = 10
+	UPDATE_ZIP_PATH   = "./update.zip"
+	CHUNK_SIZE        = 8192
+	BASE_EXP_TO_LEVEL = 100
+	EXP_PER_MOB       = 25
+	EXP_MULTIPLIER    = 1.5
 )
+
+func init() {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		log.Fatal("КРИТИЧЕСКАЯ ОШИБКА: Переменная окружения JWT_SECRET не установлена!")
+	}
+	jwtSecret = []byte(secret)
+}
 
 func initMobs() {
 	for i := 0; i < 5; i++ {
-		id := fmt.Sprintf("mob_%d", nextMobID)
-		nextMobID++
-		mobs[id] = &Mob{
-			ID:         id,
-			X:          rand.Float64() * MAP_WIDTH,
-			Y:          rand.Float64() * MAP_HEIGHT,
-			Direction:  "down",
-			Health:     100,
-			LastAttack: time.Now(),
-			LastUpdate: time.Now(),
-		}
+		spawnRandomMob()
 	}
 }
 
@@ -187,12 +209,100 @@ func spawnRandomMob() {
 	nextMobID++
 	mobs[id] = &Mob{
 		ID:         id,
-		X:          rand.Float64() * MAP_WIDTH,
-		Y:          rand.Float64() * MAP_HEIGHT,
+		X:          rng.Float64() * MAP_WIDTH,
+		Y:          rng.Float64() * MAP_HEIGHT,
 		Direction:  "down",
 		Health:     100,
+		MaxHealth:  100,
+		ExpReward:  EXP_PER_MOB,
 		LastAttack: time.Now(),
 		LastUpdate: time.Now(),
+	}
+}
+
+func calculateExpToNextLevel(level int) int {
+	return int(float64(BASE_EXP_TO_LEVEL) * math.Pow(EXP_MULTIPLIER, float64(level-1)))
+}
+
+func levelUpPlayer(player *Player) {
+	player.Level++
+	player.MaxHealth += 10
+	player.Health = player.MaxHealth
+	player.Damage += 5
+	player.ExpToNextLevel = calculateExpToNextLevel(player.Level)
+
+	log.Printf("Игрок %s повысил уровень до %d! HP: %d, Урон: %d",
+		player.Username, player.Level, player.MaxHealth, player.Damage)
+
+	savePlayerProgress(player)
+}
+
+func addExperience(player *Player, amount int) {
+	player.Exp += amount
+	log.Printf("Игрок %s получил %d опыта. Всего: %d/%d",
+		player.Username, amount, player.Exp, player.ExpToNextLevel)
+
+	for player.Exp >= player.ExpToNextLevel {
+		player.Exp -= player.ExpToNextLevel
+		levelUpPlayer(player)
+	}
+}
+
+func savePlayerProgress(player *Player) {
+	if player.Username == "" {
+		return
+	}
+	_, err := db.Exec(`
+		INSERT INTO players (username, level, health, max_health, damage, exp, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+		ON CONFLICT(username) DO UPDATE SET
+			level = excluded.level,
+			health = excluded.health,
+			max_health = excluded.max_health,
+			damage = excluded.damage,
+			exp = excluded.exp,
+			updated_at = excluded.updated_at
+	`, player.Username, player.Level, player.Health, player.MaxHealth, player.Damage, player.Exp)
+
+	if err != nil {
+		log.Printf("Ошибка сохранения прогресса игрока %s: %v", player.Username, err)
+	}
+}
+
+func loadPlayerProgress(player *Player) {
+	if player.Username == "" {
+		player.Level = 1
+		player.Health = 100
+		player.MaxHealth = 100
+		player.Damage = 10
+		player.Exp = 0
+		player.ExpToNextLevel = BASE_EXP_TO_LEVEL
+		return
+	}
+
+	var level, health, maxHealth, damage, exp int
+	err := db.QueryRow(`
+		SELECT level, health, max_health, damage, exp 
+		FROM players 
+		WHERE username = ?
+	`, player.Username).Scan(&level, &health, &maxHealth, &damage, &exp)
+
+	if err == nil {
+		player.Level = level
+		player.Health = health
+		player.MaxHealth = maxHealth
+		player.Damage = damage
+		player.Exp = exp
+		player.ExpToNextLevel = calculateExpToNextLevel(level)
+		log.Printf("Загружен прогресс игрока %s: LVL %d, EXP %d/%d",
+			player.Username, level, exp, player.ExpToNextLevel)
+	} else {
+		player.Level = 1
+		player.Health = 100
+		player.MaxHealth = 100
+		player.Damage = 10
+		player.Exp = 0
+		player.ExpToNextLevel = BASE_EXP_TO_LEVEL
 	}
 }
 
@@ -229,22 +339,32 @@ func handleCommand(cid string, commandStr string, isAdmin bool) map[string]strin
 		if len(args) > 1 {
 			reason = strings.Join(args[1:], " ")
 		}
+
+		mutex.Lock()
 		var targetCID string
-		var targetPlayer *Player
-		for cid, p := range players {
+		var targetIP string
+		for c, p := range players {
 			if p.Username == targetUsername {
-				targetCID = cid
-				targetPlayer = p
+				targetCID = c
+				targetIP = p.IP
 				break
 			}
 		}
-		if targetPlayer != nil {
-			log.Printf("Блокировка игрока %s (%s) - Причина: %s", targetUsername, targetPlayer.IP, reason)
+		if targetCID != "" {
 			delete(players, targetCID)
-			return map[string]string{"message": fmt.Sprintf("Игрок %s заблокирован.", targetUsername)}
-		} else {
-			return map[string]string{"error": fmt.Sprintf("Игрок %s не найден.", targetUsername)}
+			if conn, exists := connections[targetCID]; exists {
+				conn.Close()
+				delete(connections, targetCID)
+			}
 		}
+		mutex.Unlock()
+
+		if targetCID != "" {
+			log.Printf("Блокировка игрока %s (%s) - Причина: %s", targetUsername, targetIP, reason)
+			return map[string]string{"message": fmt.Sprintf("Игрок %s заблокирован.", targetUsername)}
+		}
+		return map[string]string{"error": fmt.Sprintf("Игрок %s не найден.", targetUsername)}
+
 	case "/kick":
 		if len(args) < 1 {
 			return map[string]string{"message": "Использование: /kick <имя_пользователя> [причина]"}
@@ -254,70 +374,100 @@ func handleCommand(cid string, commandStr string, isAdmin bool) map[string]strin
 		if len(args) > 1 {
 			reason = strings.Join(args[1:], " ")
 		}
+
+		mutex.Lock()
 		var targetCID string
-		var targetPlayer *Player
-		for cid, p := range players {
+		var targetIP string
+		for c, p := range players {
 			if p.Username == targetUsername {
-				targetCID = cid
-				targetPlayer = p
+				targetCID = c
+				targetIP = p.IP
 				break
 			}
 		}
-		if targetPlayer != nil {
-			log.Printf("Кик игрока %s (%s) - Причина: %s", targetUsername, targetPlayer.IP, reason)
+		if targetCID != "" {
 			delete(players, targetCID)
-			return map[string]string{"message": fmt.Sprintf("Игрок %s кикнут.", targetUsername)}
-		} else {
-			return map[string]string{"error": fmt.Sprintf("Игрок %s не найден.", targetUsername)}
+			if conn, exists := connections[targetCID]; exists {
+				conn.Close()
+				delete(connections, targetCID)
+			}
 		}
+		mutex.Unlock()
+
+		if targetCID != "" {
+			log.Printf("Кик игрока %s (%s) - Причина: %s", targetUsername, targetIP, reason)
+			return map[string]string{"message": fmt.Sprintf("Игрок %s кикнут.", targetUsername)}
+		}
+		return map[string]string{"error": fmt.Sprintf("Игрок %s не найден.", targetUsername)}
+
 	case "/list":
+		mutex.RLock()
 		playerList := []string{}
 		for pid, p := range players {
 			username := p.Username
 			if username == "" {
 				username = pid[:8]
 			}
-			playerList = append(playerList, fmt.Sprintf("%s на позиции (%.0f, %.0f)", username, p.X, p.Y))
+			playerList = append(playerList, fmt.Sprintf("%s (LVL:%d) на позиции (%.0f, %.0f)",
+				username, p.Level, p.X, p.Y))
 		}
+		mutex.RUnlock()
+
 		if len(playerList) == 0 {
 			return map[string]string{"message": "Нет игроков онлайн."}
 		}
 		return map[string]string{"message": "Игроки онлайн:\n" + strings.Join(playerList, "\n")}
 
 	case "/clear":
+		mutex.Lock()
 		if len(chatHistory) > 0 {
 			chatHistory = []ChatMessage{}
+			mutex.Unlock()
 			return map[string]string{"message": "История чата очищена."}
 		}
+		mutex.Unlock()
 		return map[string]string{"message": "История чата уже пуста."}
 
 	case "/restart":
 		if len(args) == 0 {
 			return map[string]string{"message": "Использование: /restart <секунды>"}
-		} else {
-			seconds, err := strconv.Atoi(args[0])
-			if err != nil {
-				return map[string]string{"error": "Неверное количество секунд."}
-			}
-			log.Printf("Сервер перезапустится через %d секунд...", seconds)
-			// TODO: реализовать перезапуск
-			return map[string]string{"message": fmt.Sprintf("Сервер перезапустится через %d секунд.", seconds)}
 		}
+		seconds, err := strconv.Atoi(args[0])
+		if err != nil {
+			return map[string]string{"error": "Неверное количество секунд."}
+		}
+		log.Printf("Сервер перезапустится через %d секунд...", seconds)
+		go func() {
+			time.Sleep(time.Duration(seconds) * time.Second)
+			log.Println("Перезапуск сервера...")
+			os.Exit(0)
+		}()
+		return map[string]string{"message": fmt.Sprintf("Сервер перезапустится через %d секунд.", seconds)}
+
 	case "/stop":
 		if len(args) == 0 {
 			return map[string]string{"message": "Использование: /stop <секунды>"}
-		} else {
-			seconds, err := strconv.Atoi(args[0])
-			if err != nil {
-				return map[string]string{"error": "Неверное количество секунд."}
-			}
-			log.Printf("Сервер остановится через %d секунд...", seconds)
-			// TODO: реализовать остановку
-			return map[string]string{"message": fmt.Sprintf("Сервер остановится через %d секунд.", seconds)}
 		}
+		seconds, err := strconv.Atoi(args[0])
+		if err != nil {
+			return map[string]string{"error": "Неверное количество секунд."}
+		}
+		log.Printf("Сервер остановится через %d секунд...", seconds)
+		go func() {
+			time.Sleep(time.Duration(seconds) * time.Second)
+			log.Println("Остановка сервера...")
+			os.Exit(0)
+		}()
+		return map[string]string{"message": fmt.Sprintf("Сервер остановится через %d секунд.", seconds)}
+
 	case "/stats":
+		mutex.RLock()
+		playerCount := len(players)
+		connCount := len(connections)
+		mutex.RUnlock()
+
 		uptime := time.Since(startTime).Seconds()
-		return map[string]string{"message": fmt.Sprintf("Статистика сервера:\nИгроки онлайн: %d\nВсего клиентов: %d\nВремя работы: %.0f секунд", len(players), len(connections), uptime)}
+		return map[string]string{"message": fmt.Sprintf("Статистика сервера:\nИгроки онлайн: %d\nВсего клиентов: %d\nВремя работы: %.0f секунд", playerCount, connCount, uptime)}
 
 	case "/level_up":
 		if len(args) < 2 {
@@ -328,6 +478,8 @@ func handleCommand(cid string, commandStr string, isAdmin bool) map[string]strin
 		if err != nil {
 			return map[string]string{"error": "Неверный уровень."}
 		}
+
+		mutex.Lock()
 		var targetPlayer *Player
 		for _, p := range players {
 			if p.Username == targetUsername {
@@ -337,12 +489,43 @@ func handleCommand(cid string, commandStr string, isAdmin bool) map[string]strin
 		}
 		if targetPlayer != nil {
 			targetPlayer.Level = level
+			targetPlayer.ExpToNextLevel = calculateExpToNextLevel(level)
+			savePlayerProgress(targetPlayer)
+			mutex.Unlock()
 			return map[string]string{"message": fmt.Sprintf("Уровень игрока %s обновлен до %d.", targetUsername, level)}
-		} else {
-			return map[string]string{"error": fmt.Sprintf("Игрок %s не найден.", targetUsername)}
 		}
+		mutex.Unlock()
+		return map[string]string{"error": fmt.Sprintf("Игрок %s не найден.", targetUsername)}
+
+	case "/add_exp":
+		if len(args) < 2 {
+			return map[string]string{"message": "Использование: /add_exp <имя_пользователя> <опыт>"}
+		}
+		targetUsername := args[0]
+		exp, err := strconv.Atoi(args[1])
+		if err != nil {
+			return map[string]string{"error": "Неверное количество опыта."}
+		}
+
+		mutex.Lock()
+		var targetPlayer *Player
+		for _, p := range players {
+			if p.Username == targetUsername {
+				targetPlayer = p
+				break
+			}
+		}
+		if targetPlayer != nil {
+			addExperience(targetPlayer, exp)
+			mutex.Unlock()
+			return map[string]string{"message": fmt.Sprintf("Игроку %s добавлено %d опыта.", targetUsername, exp)}
+		}
+		mutex.Unlock()
+		return map[string]string{"error": fmt.Sprintf("Игрок %s не найден.", targetUsername)}
+
 	case "/version":
 		return map[string]string{"message": fmt.Sprintf("Версия сервера: %s", currentVersion)}
+
 	case "/help":
 		helpText := []string{
 			"/ban <имя_пользователя> [причина]",
@@ -354,6 +537,8 @@ func handleCommand(cid string, commandStr string, isAdmin bool) map[string]strin
 			"/clear",
 			"/restart",
 			"/stop",
+			"/level_up <имя_пользователя> <уровень>",
+			"/add_exp <имя_пользователя> <опыт>",
 		}
 		return map[string]string{"message": strings.Join(helpText, "\n")}
 
@@ -363,6 +548,23 @@ func handleCommand(cid string, commandStr string, isAdmin bool) map[string]strin
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
+	ip := strings.Split(r.RemoteAddr, ":")[0]
+
+	connCountMutex.Lock()
+	if connectionCounts[ip] >= maxConnectionsPerIP {
+		connCountMutex.Unlock()
+		http.Error(w, "Too many connections from this IP", http.StatusTooManyRequests)
+		return
+	}
+	connectionCounts[ip]++
+	connCountMutex.Unlock()
+
+	defer func() {
+		connCountMutex.Lock()
+		connectionCounts[ip]--
+		connCountMutex.Unlock()
+	}()
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Ошибка обновления:", err)
@@ -370,27 +572,30 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	ip := r.RemoteAddr
 	isAdmin := false
-
 	cid := uuid.New().String()
 
 	mutex.Lock()
 	players[cid] = &Player{
-		ID:         cid,
-		X:          WIDTH / 2,
-		Y:          HEIGHT - 100,
-		Direction:  "down",
-		Moving:     false,
-		Hurt:       false,
-		Dead:       false,
-		Health:     100,
-		IP:         ip,
-		IsAdmin:    isAdmin,
-		Visible:    true,
-		LastUpdate: time.Now(),
-		LastAttack: time.Now(),
-		LastHurt:   time.Now(),
+		ID:             cid,
+		X:              float64(WIDTH / 2),
+		Y:              float64(HEIGHT - 100),
+		Direction:      "down",
+		Moving:         false,
+		Hurt:           false,
+		Dead:           false,
+		Health:         100,
+		MaxHealth:      100,
+		Level:          1,
+		Exp:            0,
+		ExpToNextLevel: BASE_EXP_TO_LEVEL,
+		Damage:         10,
+		IP:             ip,
+		IsAdmin:        isAdmin,
+		Visible:        true,
+		LastUpdate:     time.Now(),
+		LastAttack:     time.Now(),
+		LastHurt:       time.Now(),
 	}
 	connections[cid] = conn
 	mutex.Unlock()
@@ -437,8 +642,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 						}
 					}
 					isAdmin = player.IsAdmin
+
+					loadPlayerProgress(player)
 				}
 			}
+
 		case "input":
 			dx := 0.0
 			dy := 0.0
@@ -474,42 +682,64 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			player.Attacking = msg.Attack
 			player.LastUpdate = time.Now()
 
-			// Атака игрока
 			if msg.Attack {
 				if time.Since(player.LastAttack) > 600*time.Millisecond {
+					projDX := 0.0
+					projDY := 0.0
+
+					if msg.TargetX != 0 || msg.TargetY != 0 {
+						tdx := msg.TargetX - player.X
+						tdy := msg.TargetY - player.Y
+						distance := math.Sqrt(tdx*tdx + tdy*tdy)
+						if distance > 0 {
+							projDX = tdx / distance
+							projDY = tdy / distance
+						}
+					}
+
+					if projDX == 0 && projDY == 0 {
+						switch direction {
+						case "up":
+							projDY = -1
+						case "down":
+							projDY = 1
+						case "left":
+							projDX = -1
+						case "right":
+							projDX = 1
+						}
+					}
+
 					projID := fmt.Sprintf("proj_%d", nextProjID)
 					nextProjID++
-					dirX := 0.0
-					dirY := 0.0
-					switch direction {
-					case "up":
-						dirY = -1
-					case "down":
-						dirY = 1
-					case "left":
-						dirX = -1
-					case "right":
-						dirX = 1
-					}
 					projectiles[projID] = &Projectile{
 						ID:         projID,
 						X:          player.X,
 						Y:          player.Y,
-						DX:         dirX * PROJECTILE_SPEED,
-						DY:         dirY * PROJECTILE_SPEED,
+						DX:         projDX * PROJECTILE_SPEED,
+						DY:         projDY * PROJECTILE_SPEED,
 						OwnerID:    cid,
 						OwnerType:  "player",
+						Damage:     player.Damage,
 						LastUpdate: time.Now(),
 					}
 					player.LastAttack = time.Now()
 				}
 			}
 
-			// Чат
 			if msg.Chat != "" {
+				if len(msg.Chat) > maxChatMessageLength {
+					mutex.Unlock()
+					continue
+				}
+
 				message := strings.TrimSpace(msg.Chat)
 				if strings.HasPrefix(message, "/") && isAdmin {
+					mutex.Unlock()
+
 					response := handleCommand(cid, message, isAdmin)
+
+					mutex.Lock()
 					if response["message"] != "" {
 						chatHistory = append(chatHistory, ChatMessage{Sender: 0, Message: response["message"]})
 					}
@@ -523,20 +753,25 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					}
 					chatHistory = append(chatHistory, ChatMessage{Sender: 0, Message: fmt.Sprintf("[%s]: %s", username, message)})
 				}
+
+				if len(chatHistory) > maxChatHistoryLength {
+					chatHistory = chatHistory[len(chatHistory)-maxChatHistoryLength:]
+				}
 			}
+
 		case "pvp_hit":
 			if msg.Target != "" {
 				if targetPlayer, exists := players[msg.Target]; exists {
 					if time.Since(targetPlayer.LastHurt) > 500*time.Millisecond {
 						distance := math.Sqrt(math.Pow(player.X-targetPlayer.X, 2) + math.Pow(player.Y-targetPlayer.Y, 2))
 						if distance < 50 {
-							targetPlayer.Health -= 20
+							targetPlayer.Health -= player.Damage
 							targetPlayer.Hurt = true
 							targetPlayer.LastHurt = time.Now()
 							if targetPlayer.Health <= 0 {
 								targetPlayer.Dead = true
 								targetPlayer.Health = 0
-								go respawnPlayer(targetPlayer)
+								go respawnPlayer(msg.Target)
 							}
 						}
 					}
@@ -547,19 +782,32 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mutex.Lock()
+	if player, exists := players[cid]; exists {
+		savePlayerProgress(player)
+	}
 	delete(players, cid)
 	delete(connections, cid)
 	mutex.Unlock()
 	log.Printf("Игрок отключен: %s", cid)
 }
 
-func respawnPlayer(player *Player) {
+func respawnPlayer(cid string) {
 	time.Sleep(3 * time.Second)
-	player.X = WIDTH / 2
-	player.Y = HEIGHT - 100
-	player.Health = 100
+
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	player, exists := players[cid]
+	if !exists {
+		return
+	}
+
+	player.X = float64(WIDTH / 2)
+	player.Y = float64(HEIGHT - 100)
+	player.Health = player.MaxHealth
 	player.Dead = false
 	player.Hurt = false
+	log.Printf("Игрок %s респавнился", cid)
 }
 
 func gameLoop() {
@@ -571,9 +819,7 @@ func gameLoop() {
 
 		currentTime := time.Now()
 
-		// Обновление позиций мобов и их атака
 		for _, mob := range mobs {
-			// Находим ближайшего игрока
 			var nearestPlayer *Player
 			minDistance := math.Inf(1)
 			for _, player := range players {
@@ -583,7 +829,7 @@ func gameLoop() {
 					nearestPlayer = player
 				}
 			}
-			// Движение к ближайшему игроку
+
 			if nearestPlayer != nil && minDistance > 0 {
 				dx := nearestPlayer.X - mob.X
 				dy := nearestPlayer.Y - mob.Y
@@ -594,7 +840,6 @@ func gameLoop() {
 				mob.LastUpdate = currentTime
 			}
 
-			// Атака моба
 			if nearestPlayer != nil && minDistance < 200 {
 				if time.Since(mob.LastAttack) > 1000*time.Millisecond {
 					dx := nearestPlayer.X - mob.X
@@ -614,6 +859,7 @@ func gameLoop() {
 						DY:         dy * PROJECTILE_SPEED,
 						OwnerID:    mob.ID,
 						OwnerType:  "mob",
+						Damage:     20,
 						LastUpdate: currentTime,
 					}
 					mob.LastAttack = currentTime
@@ -621,43 +867,50 @@ func gameLoop() {
 			}
 		}
 
-		// Обновление снарядов
+		var projectilesToDelete []string
+		var mobsToDelete []string
+
 		for id, proj := range projectiles {
 			proj.X += proj.DX
 			proj.Y += proj.DY
 			if proj.X < 0 || proj.X > MAP_WIDTH || proj.Y < 0 || proj.Y > MAP_HEIGHT {
-				delete(projectiles, id)
+				projectilesToDelete = append(projectilesToDelete, id)
+				continue
 			}
-		}
 
-		// Столкновения снарядов
-		for projID, proj := range projectiles {
 			if proj.OwnerType == "player" {
 				for mobID, mob := range mobs {
 					if math.Abs(proj.X-mob.X) < 32 && math.Abs(proj.Y-mob.Y) < 32 {
-						mob.Health -= 100
-						delete(projectiles, projID)
+						mob.Health -= proj.Damage
+						projectilesToDelete = append(projectilesToDelete, id)
+
 						if mob.Health <= 0 {
-							delete(mobs, mobID)
-							spawnRandomMob()
+							if player, exists := players[proj.OwnerID]; exists {
+								addExperience(player, mob.ExpReward)
+								log.Printf("Игрок %s убил моба %s и получил %d опыта",
+									player.Username, mobID, mob.ExpReward)
+							}
+							mobsToDelete = append(mobsToDelete, mobID)
 						}
 						break
 					}
 				}
 			}
+
 			if proj.OwnerType == "mob" {
 				for playerID, player := range players {
 					if math.Abs(proj.X-player.X) < 32 && math.Abs(proj.Y-player.Y) < 32 {
-						log.Printf("Снаряд (ID: %s) попал в игрока (ID: %s). Нанесено 20 урона.", proj.ID, playerID)
-						player.Health -= 20
+						log.Printf("Снаряд (ID: %s) попал в игрока (ID: %s). Нанесено %d урона.",
+							proj.ID, playerID, proj.Damage)
+						player.Health -= proj.Damage
 						player.Hurt = true
 						player.LastHurt = currentTime
-						delete(projectiles, projID)
+						projectilesToDelete = append(projectilesToDelete, id)
 
 						if player.Health <= 0 {
 							player.Dead = true
 							player.Health = 0
-							go respawnPlayer(player)
+							go respawnPlayer(playerID)
 							log.Printf("Игрок (ID: %s) был убит снарядом (ID: %s).", playerID, proj.ID)
 						}
 						break
@@ -666,30 +919,43 @@ func gameLoop() {
 			}
 		}
 
-		// Подготовка состояния для клиентов
+		for _, id := range projectilesToDelete {
+			delete(projectiles, id)
+		}
+		for _, id := range mobsToDelete {
+			delete(mobs, id)
+			spawnRandomMob()
+		}
+
 		playersState := make(map[string]interface{})
 		for id, p := range players {
 			playersState[id] = map[string]interface{}{
-				"id":        p.ID,
-				"x":         p.X,
-				"y":         p.Y,
-				"direction": p.Direction,
-				"moving":    p.Moving,
-				"attacking": p.Attacking,
-				"hurt":      p.Hurt,
-				"dead":      p.Dead,
-				"health":    p.Health,
+				"id":                p.ID,
+				"x":                 p.X,
+				"y":                 p.Y,
+				"direction":         p.Direction,
+				"moving":            p.Moving,
+				"attacking":         p.Attacking,
+				"hurt":              p.Hurt,
+				"dead":              p.Dead,
+				"health":            p.Health,
+				"max_health":        p.MaxHealth,
+				"level":             p.Level,
+				"exp":               p.Exp,
+				"exp_to_next_level": p.ExpToNextLevel,
+				"damage":            p.Damage,
 			}
 		}
 
 		mobsState := make(map[string]interface{})
 		for id, m := range mobs {
 			mobsState[id] = map[string]interface{}{
-				"id":        m.ID,
-				"x":         m.X,
-				"y":         m.Y,
-				"direction": m.Direction,
-				"health":    m.Health,
+				"id":         m.ID,
+				"x":          m.X,
+				"y":          m.Y,
+				"direction":  m.Direction,
+				"health":     m.Health,
+				"max_health": m.MaxHealth,
 			}
 		}
 
@@ -702,416 +968,95 @@ func gameLoop() {
 			}
 		}
 
+		chatCopy := make([]ChatMessage, len(chatHistory))
+		copy(chatCopy, chatHistory)
+
 		stateMsg := ServerMessage{
 			Type:        "state",
 			Players:     playersState,
 			Mobs:        mobsState,
 			Projectiles: projectilesState,
 			ServerTime:  int64(currentTime.Unix()),
-			ChatHistory: chatHistory[len(chatHistory)-min(10, len(chatHistory)):],
+			ChatHistory: chatCopy,
 		}
 
-		// Рассылка всем клиентам
+		connsCopy := make([]*websocket.Conn, 0, len(connections))
 		for _, conn := range connections {
-			conn.WriteJSON(stateMsg)
+			connsCopy = append(connsCopy, conn)
 		}
 
 		mutex.Unlock()
-	}
-}
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func registerHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Регистрация: запрос от %s", r.RemoteAddr)
-	if r.Method != http.MethodPost {
-		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req RegisterRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		log.Printf("Ошибка декодирования JSON: %v", err)
-		http.Error(w, "Неверное тело запроса", http.StatusBadRequest)
-		return
-	}
-
-	if req.Username == "" || req.Password == "" {
-		log.Printf("Пустой логин или пароль")
-		http.Error(w, "Логин и пароль обязательны", http.StatusBadRequest)
-		return
-	}
-
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	_, err = getUser(req.Username)
-	if err == nil {
-		log.Printf("Пользователь %s уже существует", req.Username)
-		http.Error(w, "Имя пользователя уже существует", http.StatusConflict)
-		return
-	} else if err != sql.ErrNoRows {
-		log.Printf("Ошибка БД при проверке пользователя: %v", err)
-		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
-		return
-	}
-
-	_, err = db.Exec("INSERT INTO users (username, password, is_admin) VALUES (?, ?, ?)", req.Username, req.Password, false)
-	if err != nil {
-		log.Printf("Ошибка вставки пользователя: %v", err)
-		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
-		return
-	}
-
-	log.Printf("Пользователь %s зарегистрирован", req.Username)
-	token, err := generateJWT(req.Username)
-	if err != nil {
-		http.Error(w, "Ошибка генерации токена", http.StatusInternalServerError)
-		return
-	}
-
-	resp := AuthResponse{
-		Success: true,
-		Message: "Регистрация успешна!",
-		Token:   token,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req LoginRequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, "Неверное тело запроса", http.StatusBadRequest)
-		return
-	}
-
-	mutex.RLock()
-	defer mutex.RUnlock()
-
-	user, err := getUser(req.Username)
-	if err != nil || user.Password != req.Password {
-		http.Error(w, "Неверные учетные данные", http.StatusUnauthorized)
-		return
-	}
-
-	token, err := generateJWT(user.Username)
-	if err != nil {
-		http.Error(w, "Ошибка генерации токена", http.StatusInternalServerError)
-		return
-	}
-
-	resp := AuthResponse{
-		Success: true,
-		Message: "Вход успешен",
-		Token:   token,
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
-}
-
-func generateJWT(username string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"username": username,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(),
-	})
-	return token.SignedString(jwtSecret)
-}
-
-func validateJWT(tokenString string) (string, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return jwtSecret, nil
-	})
-	if err != nil {
-		return "", err
-	}
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		if username, ok := claims["username"].(string); ok {
-			return username, nil
+		for _, conn := range connsCopy {
+			go func(c *websocket.Conn) {
+				c.WriteJSON(stateMsg)
+			}(conn)
 		}
 	}
-	return "", fmt.Errorf("invalid token")
-}
-
-func loadUsers() {
-	usersData.Banned = loadBanned()
-	usersData.Admins = loadAdmins()
-	usersData.Registered = loadRegistered()
-
-	if len(usersData.Admins) == 0 {
-		saveUsers()
-		usersData.Admins = loadAdmins()
-	}
-}
-
-func saveUsers() {
-	_, err := db.Exec("INSERT OR IGNORE INTO admins (username) VALUES ('admin')")
-	if err != nil {
-		log.Println("Ошибка вставки администратора по умолчанию:", err)
-	}
-}
-
-func getUser(username string) (User, error) {
-	var user User
-	err := db.QueryRow("SELECT username, password, is_admin FROM users WHERE username = ?", username).Scan(&user.Username, &user.Password, &user.IsAdmin)
-	return user, err
-}
-
-func loadAdmins() []string {
-	rows, err := db.Query("SELECT username FROM admins")
-	if err != nil {
-		log.Println("Ошибка загрузки администраторов:", err)
-		return []string{}
-	}
-	defer rows.Close()
-
-	var admins []string
-	for rows.Next() {
-		var username string
-		err := rows.Scan(&username)
-		if err != nil {
-			log.Println("Ошибка сканирования администратора:", err)
-			continue
-		}
-		admins = append(admins, username)
-	}
-	return admins
-}
-
-func loadBanned() []string {
-	rows, err := db.Query("SELECT username FROM banned")
-	if err != nil {
-		log.Println("Ошибка загрузки заблокированных:", err)
-		return []string{}
-	}
-	defer rows.Close()
-
-	var banned []string
-	for rows.Next() {
-		var username string
-		err := rows.Scan(&username)
-		if err != nil {
-			log.Println("Ошибка сканирования заблокированного:", err)
-			continue
-		}
-		banned = append(banned, username)
-	}
-	return banned
-}
-
-func loadRegistered() []User {
-	rows, err := db.Query("SELECT username, password, is_admin FROM users")
-	if err != nil {
-		log.Println("Ошибка загрузки пользователей:", err)
-		return []User{}
-	}
-	defer rows.Close()
-
-	var users []User
-	for rows.Next() {
-		var user User
-		err := rows.Scan(&user.Username, &user.Password, &user.IsAdmin)
-		if err != nil {
-			log.Println("Ошибка сканирования пользователя:", err)
-			continue
-		}
-		users = append(users, user)
-	}
-	return users
-}
-
-func checkUpdateHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
-		return
-	}
-
-	clientVersion := r.URL.Query().Get("version")
-	if clientVersion == "" {
-		http.Error(w, "Версия клиента не указана", http.StatusBadRequest)
-		return
-	}
-
-	latestVersion := getLatestVersion()
-
-	response := UpdateResponse{
-		UpdateAvailable: clientVersion != latestVersion,
-		LatestVersion:   latestVersion,
-		CurrentVersion:  clientVersion,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-cache")
-	json.NewEncoder(w).Encode(response)
-}
-
-func downloadUpdateHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
-		return
-	}
-
-	fileInfo, err := os.Stat(UPDATE_ZIP_PATH)
-	if os.IsNotExist(err) {
-		http.Error(w, "Файл обновления не найден", http.StatusNotFound)
-		return
-	}
-
-	latestVersion := getLatestVersion()
-
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"update_%s.zip\"", latestVersion))
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-	w.Header().Set("Cache-Control", "no-cache")
-
-	file, err := os.Open(UPDATE_ZIP_PATH)
-	if err != nil {
-		log.Printf("Ошибка открытия файла обновления: %v", err)
-		http.Error(w, "Ошибка сервера", http.StatusInternalServerError)
-		return
-	}
-	defer file.Close()
-
-	buf := make([]byte, CHUNK_SIZE)
-	_, err = io.CopyBuffer(w, file, buf)
-	if err != nil {
-		log.Printf("Ошибка отправки файла: %v", err)
-	}
-}
-
-func adminBackupHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
-		return
-	}
-
-	token := r.Header.Get("Authorization")
-	if token == "" {
-		http.Error(w, "Токен не предоставлен", http.StatusUnauthorized)
-		return
-	}
-	if strings.HasPrefix(token, "Bearer ") {
-		token = strings.TrimPrefix(token, "Bearer ")
-	}
-
-	username, err := validateJWT(token)
-	if err != nil {
-		http.Error(w, "Неверный токен", http.StatusUnauthorized)
-		return
-	}
-
-	isAdmin := false
-	for _, admin := range usersData.Admins {
-		if admin == username {
-			isAdmin = true
-			break
-		}
-	}
-	for _, user := range usersData.Registered {
-		if user.Username == username && user.IsAdmin {
-			isAdmin = true
-			break
-		}
-	}
-
-	if !isAdmin {
-		http.Error(w, "Доступ запрещен", http.StatusForbidden)
-		return
-	}
-
-	backupData := map[string]interface{}{
-		"users":     loadRegistered(),
-		"admins":    loadAdmins(),
-		"banned":    loadBanned(),
-		"version":   currentVersion,
-		"timestamp": time.Now().Unix(),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(backupData)
 }
 
 func createTables() {
 	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS users (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			username TEXT UNIQUE NOT NULL,
-			password TEXT NOT NULL,
-			is_admin INTEGER DEFAULT 0
-		)
+	CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT UNIQUE NOT NULL,
+		password TEXT NOT NULL,
+		is_admin INTEGER DEFAULT 0
+	)
 	`)
 	if err != nil {
 		log.Fatal("Ошибка создания таблицы users:", err)
 	}
 
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS admins (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			username TEXT UNIQUE NOT NULL
-		)
+	CREATE TABLE IF NOT EXISTS admins (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT UNIQUE NOT NULL
+	)
 	`)
 	if err != nil {
 		log.Fatal("Ошибка создания таблицы admins:", err)
 	}
 
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS banned (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			username TEXT UNIQUE NOT NULL
-		)
+	CREATE TABLE IF NOT EXISTS banned (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT UNIQUE NOT NULL
+	)
 	`)
 	if err != nil {
 		log.Fatal("Ошибка создания таблицы banned:", err)
 	}
 
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS players (
-			id TEXT PRIMARY KEY,
-			username TEXT,
-			x REAL DEFAULT 960,
-			y REAL DEFAULT 980,
-			direction TEXT DEFAULT 'down',
-			health INTEGER DEFAULT 100,
-			level INTEGER DEFAULT 1,
-			ip TEXT,
-			is_admin INTEGER DEFAULT 0,
-			visible INTEGER DEFAULT 1,
-			last_update TEXT DEFAULT (datetime('now'))
-		)
+	CREATE TABLE IF NOT EXISTS players (
+		username TEXT PRIMARY KEY,
+		health INTEGER DEFAULT 100,
+		max_health INTEGER DEFAULT 100,
+		level INTEGER DEFAULT 1,
+		exp INTEGER DEFAULT 0,
+		damage INTEGER DEFAULT 10,
+		updated_at TEXT DEFAULT (datetime('now'))
+	)
 	`)
 	if err != nil {
 		log.Fatal("Ошибка создания таблицы players:", err)
 	}
 
 	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS app_settings (
-			key TEXT PRIMARY KEY,
-			value TEXT NOT NULL,
-			updated_at TEXT DEFAULT (datetime('now'))
-		)
+	CREATE TABLE IF NOT EXISTS app_settings (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL,
+		updated_at TEXT DEFAULT (datetime('now'))
+	)
 	`)
 	if err != nil {
 		log.Fatal("Ошибка создания таблицы app_settings:", err)
 	}
 
 	_, err = db.Exec(`
-		INSERT OR IGNORE INTO app_settings (key, value) 
-		VALUES ('latest_version', '1.0.0')
+	INSERT OR IGNORE INTO app_settings (key, value)
+	VALUES ('latest_version', '1.0.0')
 	`)
 	if err != nil {
 		log.Printf("Ошибка инициализации версии: %v", err)
@@ -1121,14 +1066,6 @@ func createTables() {
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-
-	if len(jwtSecret) == 0 {
-		jwtSecret = []byte("default-secret-key-change-in-production")
-		log.Println("ВНИМАНИЕ: Используется стандартный JWT секрет. Установите JWT_SECRET в переменных окружения.")
-	}
-
-	// Используем SQLite, файл game.db создастся автоматически
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		databaseURL = "file:game.db?cache=shared&mode=rwc"
@@ -1146,7 +1083,7 @@ func main() {
 		log.Fatal("Ошибка ping к БД:", err)
 	}
 
-	db.SetMaxOpenConns(1) // SQLite рекомендует ограничивать конкурентные записи
+	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(0)
 
@@ -1174,24 +1111,42 @@ func main() {
 		if r.URL.Path == "/" {
 			w.Header().Set("Content-Type", "text/html")
 			fmt.Fprintf(w, `
-				<html>
-					<head><title>Game Server</title></head>
-					<body>
-						<h1>Game Server v%s</h1>
-						<p>Сервер запущен и работает</p>
-						<ul>
-							<li><a href="/check_update?version=1.0.0">Проверить обновления</a></li>
-							<li>WebSocket: /ws</li>
-							<li>Регистрация: /register</li>
-							<li>Вход: /login</li>
-						</ul>
-					</body>
-				</html>
+<!DOCTYPE html>
+<html>
+<head><title>Game Server</title></head>
+<body>
+<h1>Game Server v%s</h1>
+<p>Сервер запущен и работает</p>
+<ul>
+<li><a href="/check_update?version=1.0.0">Проверить обновления</a></li>
+<li>WebSocket: /ws</li>
+<li>Регистрация: /register</li>
+<li>Вход: /login</li>
+</ul>
+</body>
+</html>
 			`, currentVersion)
 		}
 	})
 
 	go gameLoop()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		log.Println("Получен сигнал завершения, сохраняем прогресс всех игроков...")
+
+		mutex.Lock()
+		for _, player := range players {
+			savePlayerProgress(player)
+		}
+		mutex.Unlock()
+
+		log.Println("Прогресс сохранён. Завершение работы.")
+		os.Exit(0)
+	}()
 
 	log.Printf("Запуск сервера на порту %s...", port)
 	log.Printf("Текущая версия: %s", currentVersion)

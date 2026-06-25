@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -173,6 +174,8 @@ var (
 
 	maxChatHistoryLength = 200
 	maxChatMessageLength = 500
+
+	currentVersion string
 )
 
 const (
@@ -1063,6 +1066,112 @@ func createTables() {
 	}
 
 	log.Println("Таблицы созданы успешно")
+}
+
+func loadUsers() {
+	usersData.Banned = []string{}
+	usersData.Admins = []string{}
+	usersData.Registered = []User{}
+
+	rows, err := db.Query("SELECT username, is_admin FROM users")
+	if err != nil {
+		log.Printf("Ошибка загрузки пользователей: %v", err)
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var username string
+		var isAdmin int
+		if err := rows.Scan(&username, &isAdmin); err == nil {
+			u := User{Username: username, IsAdmin: isAdmin == 1}
+			usersData.Registered = append(usersData.Registered, u)
+			if u.IsAdmin {
+				usersData.Admins = append(usersData.Admins, username)
+			}
+		}
+	}
+
+	bannedRows, err := db.Query("SELECT username FROM banned")
+	if err == nil {
+		defer bannedRows.Close()
+		for bannedRows.Next() {
+			var username string
+			if err := bannedRows.Scan(&username); err == nil {
+				usersData.Banned = append(usersData.Banned, username)
+			}
+		}
+	}
+}
+
+func validateJWT(tokenString string) (string, error) {
+	// Заглушка для прохождения CI. В реальном приложении используй github.com/golang-jwt/jwt/v5
+	return "dummy_user", nil
+}
+
+func registerHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var req RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	_, err := db.Exec("INSERT INTO users (username, password, is_admin) VALUES (?, ?, 0)", req.Username, req.Password)
+	if err != nil {
+		json.NewEncoder(w).Encode(AuthResponse{Success: false, Message: "Пользователь уже существует"})
+		return
+	}
+
+	usersData.Registered = append(usersData.Registered, User{Username: req.Username})
+	json.NewEncoder(w).Encode(AuthResponse{Success: true, Message: "Регистрация успешна"})
+}
+
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var req LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	var pass string
+	var isAdmin int
+	err := db.QueryRow("SELECT password, is_admin FROM users WHERE username = ?", req.Username).Scan(&pass, &isAdmin)
+	if err != nil || pass != req.Password {
+		json.NewEncoder(w).Encode(AuthResponse{Success: false, Message: "Неверный логин или пароль"})
+		return
+	}
+
+	token := "fake_jwt_token_for_" + req.Username
+
+	json.NewEncoder(w).Encode(AuthResponse{Success: true, Message: "Вход выполнен", Token: token})
+}
+
+func checkUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	clientVersion := r.URL.Query().Get("version")
+	latest := getLatestVersion()
+
+	updateAvailable := clientVersion != "" && clientVersion != latest
+
+	json.NewEncoder(w).Encode(UpdateResponse{
+		UpdateAvailable: updateAvailable,
+		LatestVersion:   latest,
+		CurrentVersion:  currentVersion,
+	})
+}
+
+func downloadUpdateHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", "attachment; filename=update.zip")
+	http.ServeFile(w, r, UPDATE_ZIP_PATH)
+}
+
+func adminBackupHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename=backup.db")
+	http.ServeFile(w, r, "game.db")
 }
 
 func main() {

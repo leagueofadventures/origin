@@ -64,9 +64,9 @@ jobs:
       - name: Build Launcher EXE with Tcl/Tk
         shell: pwsh
         run: |
-          $pyPath = $env:pythonLocation
-          $tclPath = "$pyPathtcltcl8.6"
-          $tkPath = "$pyPathtcltk8.6"
+          $pyPrefix = python -c "import sys; print(sys.prefix)"
+          $tclPath = "$pyPrefix\tcl\tcl8.6"
+          $tkPath = "$pyPrefix\tcl\tk8.6"
           
           if (-not (Test-Path $tclPath)) {
               Write-Error "Tcl directory not found at: $tclPath"
@@ -89,11 +89,11 @@ jobs:
           xcopy "$tclPath" "distLaunchertcl" /E /I /Y
           xcopy "$tkPath" "distLaunchertk" /E /I /Y
           
-          if (Test-Path "$pyPathtcl86t.dll") {
-              Copy-Item "$pyPathtcl86t.dll" "distLauncher" -Force
+          if (Test-Path "$pyPrefix\tcl86t.dll") {
+              Copy-Item "$pyPrefix\tcl86t.dll" "distLauncher" -Force
           }
-          if (Test-Path "$pyPathtk86t.dll") {
-              Copy-Item "$pyPathtk86t.dll" "distLauncher" -Force
+          if (Test-Path "$pyPrefix\tk86t.dll") {
+              Copy-Item "$pyPrefix\tk86t.dll" "distLauncher" -Force
           }
       
       - name: Upload game artifacts

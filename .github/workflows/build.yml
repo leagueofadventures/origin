@@ -1,34 +1,172 @@
-    - name: Build Launcher EXE with Tcl/Tk
-      shell: pwsh
-      run: |
-        $pyPath = $env:pythonLocation
-        $tclPath = "$pyPathtcltcl8.6"
-        $tkPath = "$pyPathtcltk8.6"
-        
-        if (-not (Test-Path $tclPath)) {
-            Write-Error "Tcl directory not found at: $tclPath"
+name: Build Game and Server
+
+on:
+  push:
+    branches: ['main']
+    paths:
+      - 'main.py'
+      - 'launcher.py'
+      - 'images/**'
+      - 'music/**'
+      - 'maps/**'
+      - 'sprites/**'
+      - 'requirements.txt'
+      - '.github/workflows/build.yml'
+      - 'server/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        shell: cmd
+        run: |
+          python -m pip install --upgrade pip
+          pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
+          if exist requirements.txt pip install -r requirements.txt
+      
+      - name: Check Icon Path
+        shell: cmd
+        run: |
+          if exist "images/icon.ico" (
+            echo Icon found!
+          ) else (
+            echo ERROR: images/icon.ico not found in repository!
+            dir /s /b icon.ico
             exit 1
-        }
-        if (-not (Test-Path $tkPath)) {
-            Write-Error "Tk directory not found at: $tkPath"
-            exit 1
-        }
-        
-        pyinstaller --noconfirm --noconsole --onedir --name=Launcher `
-          --icon="images/icon.ico" `
-          --hidden-import=tkinter `
-          --hidden-import=requests `
-          --add-data="images;images" `
-          launcher.py
-        
-        New-Item -ItemType Directory -Force -Path "distLaunchertcl"
-        New-Item -ItemType Directory -Force -Path "distLaunchertk"
-        xcopy "$tclPath" "distLaunchertcl" /E /I /Y
-        xcopy "$tkPath" "distLaunchertk" /E /I /Y
-        
-        if (Test-Path "$pyPathtcl86t.dll") {
-            Copy-Item "$pyPathtcl86t.dll" "distLauncher" -Force
-        }
-        if (Test-Path "$pyPathtk86t.dll") {
-            Copy-Item "$pyPathtk86t.dll" "distLauncher" -Force
-        }
+          )
+      
+      - name: Build Game EXE
+        shell: cmd
+        run: |
+          pyinstaller --noconfirm --noconsole --onedir --name=main ^
+            --icon="images/icon.ico" ^
+            --hidden-import=pygame ^
+            --hidden-import=pytmx ^
+            --hidden-import=websocket ^
+            --hidden-import=requests ^
+            --add-data="images;images" ^
+            --add-data="music;music" ^
+            --add-data="maps;maps" ^
+            --add-data="sprites;sprites" ^
+            main.py
+      
+      - name: Build Launcher EXE with Tcl/Tk
+        shell: pwsh
+        run: |
+          $pyPath = $env:pythonLocation
+          $tclPath = "$pyPathtcltcl8.6"
+          $tkPath = "$pyPathtcltk8.6"
+          
+          if (-not (Test-Path $tclPath)) {
+              Write-Error "Tcl directory not found at: $tclPath"
+              exit 1
+          }
+          if (-not (Test-Path $tkPath)) {
+              Write-Error "Tk directory not found at: $tkPath"
+              exit 1
+          }
+          
+          pyinstaller --noconfirm --noconsole --onedir --name=Launcher `
+            --icon="images/icon.ico" `
+            --hidden-import=tkinter `
+            --hidden-import=requests `
+            --add-data="images;images" `
+            launcher.py
+          
+          New-Item -ItemType Directory -Force -Path "distLaunchertcl"
+          New-Item -ItemType Directory -Force -Path "distLaunchertk"
+          xcopy "$tclPath" "distLaunchertcl" /E /I /Y
+          xcopy "$tkPath" "distLaunchertk" /E /I /Y
+          
+          if (Test-Path "$pyPathtcl86t.dll") {
+              Copy-Item "$pyPathtcl86t.dll" "distLauncher" -Force
+          }
+          if (Test-Path "$pyPathtk86t.dll") {
+              Copy-Item "$pyPathtk86t.dll" "distLauncher" -Force
+          }
+      
+      - name: Upload game artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-build
+          path: |
+            dist/main/
+            dist/Launcher/
+
+  build-go-server:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+      
+      - name: Download and verify Go dependencies
+        shell: pwsh
+        run: |
+          cd server
+          go mod tidy
+      
+      - name: Build Go Server Binary (.exe)
+        shell: pwsh
+        run: |
+          cd server
+          go build -o ../server.exe .
+      
+      - name: Upload server artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-exe
+          path: server.exe
+
+  create-release-asset:
+    needs: [build, build-go-server]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Assemble final release structure
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "Final_ReleaseGame"
+          New-Item -ItemType Directory -Force -Path "Final_ReleaseServer"
+
+          Copy-Item "artifactsgame-buildmain*" "Final_ReleaseGame" -Recurse -Force
+          Copy-Item "artifactsgame-buildLauncher*" "Final_ReleaseGame" -Recurse -Force
+          Copy-Item "artifactsserver-exeserver.exe" "Final_ReleaseServerserver.exe"
+
+          Compress-Archive -Path "Final_Release*" -DestinationPath "Leagueofadventures.zip"
+
+      - name: Upload final artifact to workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: League of Adventures Full Release
+          path: Leagueofadventures.zip
+
+      - name: Create GitHub Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Leagueofadventures.zip
+          tag_name: "build-${{ github.sha }}"
+          name: "League of Adventures v1.0.0"
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

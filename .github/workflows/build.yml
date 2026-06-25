@@ -31,6 +31,7 @@ jobs:
       - name: Install dependencies
         shell: cmd
         run: |
+          chcp 65001
           python -m pip install --upgrade pip
           pip install pygame==2.5.2 pyinstaller==5.13.0 pytmx websocket-client requests
           if exist requirements.txt pip install -r requirements.txt
@@ -38,6 +39,7 @@ jobs:
       - name: Check Icon Path
         shell: cmd
         run: |
+          chcp 65001
           if exist "images/icon.ico" (
             echo Icon found!
           ) else (
@@ -49,6 +51,7 @@ jobs:
       - name: Build Game EXE
         shell: cmd
         run: |
+          chcp 65001
           pyinstaller --noconfirm --noconsole --onedir --name=main ^
             --icon="images/icon.ico" ^
             --hidden-import=pygame ^
@@ -60,6 +63,9 @@ jobs:
             --add-data="maps;maps" ^
             --add-data="sprites;sprites" ^
             main.py
+          if exist "dist\main\main.exe" (
+            copy "dist\main\main.exe" "dist\main\game.exe"
+          )
       
       - name: Build Launcher EXE with Tcl/Tk
         shell: pwsh

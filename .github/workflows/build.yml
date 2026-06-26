@@ -52,12 +52,15 @@ jobs:
         shell: cmd
         run: |
           chcp 65001
+          set PYTHONIOENCODING=utf-8
+          set PYTHONUTF8=1
           pyinstaller --noconfirm --noconsole --onedir --name=main ^
             --icon="images/icon.ico" ^
             --hidden-import=pygame ^
             --hidden-import=pytmx ^
             --hidden-import=websocket ^
             --hidden-import=requests ^
+            --hidden-import=encodings.utf_8 ^
             --add-data="images;images" ^
             --add-data="music;music" ^
             --add-data="maps;maps" ^

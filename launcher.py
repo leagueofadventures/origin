@@ -25,7 +25,7 @@ class GameLauncher:
         self.config_file = "launcher_config.json"
         self.token = None
         
-        # Пресеты серверов (потому что хардкодить URL — это моветон)
+        # Пресеты серверов 
         self.server_presets = {
             "🌐 Render (Production)": "wss://leagueofadventures.onrender.com/ws",
             "🏠 Локальный (localhost)": "ws://localhost:8080/ws",
